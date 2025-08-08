@@ -36,6 +36,19 @@ import { DashboardModule } from './dashboard/dashboard.module';
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_DATABASE'),
+        TypeOrmModule.forRootAsync({
+          imports: [ConfigModule],
+          inject: [ConfigService],
+          useFactory: (config: ConfigService) => ({
+            type: 'postgres',
+            host: config.get<string>('DB_HOST'),
+            port: parseInt(config.get<string>('DB_PORT') ?? '5432', 10),
+            username: config.get<string>('DB_USERNAME'),
+            password: config.get<string>('DB_PASSWORD'),
+            database: config.get<string>('DB_DATABASE'),
+            ssl: config.get<string>('DB_SSL') === 'true'
+              ? { rejectUnauthorized: false }   // Koyeb suele requerir TLS; CA no pública
+              : false,        
         entities: [join(__dirname, '**', '*.entity{.ts,.js}')],
         synchronize: false,
       }),
