@@ -32,7 +32,7 @@ export class ExcelExportService {
     
     // Generar buffer
     const buffer = await workbook.xlsx.writeBuffer();
-    return buffer as Buffer;
+    return buffer as unknown as Buffer;
   }
 
   private async createPaymentsSheet(sheet: ExcelJS.Worksheet, startDate?: Date, endDate?: Date) {
