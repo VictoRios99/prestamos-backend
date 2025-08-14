@@ -9,6 +9,7 @@
     "node": "20.x"
   },
   "scripts": {
+    "prebuild": "rm -rf static && cd ../prestamos-frontend && npm install && npm run build -- --configuration production && mkdir -p ../prestamos-backend/static && cp -R dist/prestamos-frontend/browser/* ../prestamos-backend/static",
     "build": "nest build || tsc -p tsconfig.build.json",
     "db:reset": "ts-node -r tsconfig-paths/register src/tools/reset-db.ts",
     "db:reset:all": "NODE_ENV=development npm run db:reset",
