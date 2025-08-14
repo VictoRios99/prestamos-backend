@@ -6,18 +6,20 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": "20.x"
+    "node": "20.x",
+    "npm": "10.x"
   },
   "scripts": {
-    "prebuild": "rm -rf static && cd ../prestamos-frontend && npm install && npm run build -- --configuration production && mkdir -p ../prestamos-backend/static && cp -R dist/prestamos-frontend/browser/* ../prestamos-backend/static",
-    "build": "nest build || tsc -p tsconfig.build.json",
+    "build": "nest build",
+    "heroku-build": "npm run build && node scripts/copy-spa.js",
+    "heroku-postbuild": "echo Build finished",
     "db:reset": "ts-node -r tsconfig-paths/register src/tools/reset-db.ts",
     "db:reset:all": "NODE_ENV=development npm run db:reset",
     "prestart": "npm run build",
-    "start": "node dist/src/main.js",
+    "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/src/main.js",
+    "start:prod": "node dist/main.js",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
