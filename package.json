@@ -13,6 +13,7 @@
     "build": "nest build || tsc -p tsconfig.build.json",
     "db:reset": "ts-node -r tsconfig-paths/register src/tools/reset-db.ts",
     "db:reset:all": "NODE_ENV=development npm run db:reset",
+    "db:clear-loans": "ts-node -r tsconfig-paths/register src/tools/clear-loans-and-payments.ts",
     "prestart": "npm run build",
     "start": "node dist/src/main.js",
     "start:dev": "nest start --watch",
