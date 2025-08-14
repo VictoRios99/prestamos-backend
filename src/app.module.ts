@@ -20,8 +20,9 @@ import { DashboardModule } from './dashboard/dashboard.module';
 @Module({
   imports: [
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', '..', 'static', 'browser'),
-      exclude: ['/api'],
+      rootPath: join(process.cwd(), 'static', 'browser'),
+      serveRoot: '/',
+      exclude: ['/api*'],
     }),
 
     ConfigModule.forRoot({ isGlobal: true }),
