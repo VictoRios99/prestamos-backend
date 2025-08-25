@@ -17,8 +17,14 @@ async function bootstrap() {
   const origins = frontendOrigin ? [...defaultOrigins, frontendOrigin] : defaultOrigins;
 
   app.enableCors({
-    origin: origins,
+    origin: [
+      'http://localhost:4200',
+      'http://127.0.0.1:4200',
+      'https://prestamos-frontend-static-5o3zbir5w.vercel.app/'  // <- reemplaza por tu URL real
+    ],
     credentials: true,
+    methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+    allowedHeaders: ['Content-Type','Authorization']
   });
 
   // Validación global (tal como la tienes)
