@@ -11,8 +11,13 @@ async function main() {
     const dataSource = app.get(DataSource);
 
     // Evita accidentes en prod
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_RESET !== 'true') {
-      throw new Error('Bloqueado en producción. Exporta ALLOW_RESET=true para permitirlo.');
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_RESET !== 'true'
+    ) {
+      throw new Error(
+        'Bloqueado en producción. Exporta ALLOW_RESET=true para permitirlo.',
+      );
     }
 
     // Entidades a eliminar
@@ -22,8 +27,12 @@ async function main() {
       .join(', ');
 
     console.log('🧨 TRUNCATE (CASCADE) →', tableNames);
-    await dataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`);
-    console.log('✅ Datos de Préstamos y Pagos eliminados. Los clientes no fueron modificados.');
+    await dataSource.query(
+      `TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`,
+    );
+    console.log(
+      '✅ Datos de Préstamos y Pagos eliminados. Los clientes no fueron modificados.',
+    );
   } catch (err: any) {
     console.error('❌ Error eliminando datos:', err.message || err);
     process.exitCode = 1;

@@ -1,12 +1,18 @@
 // src/cash-movements/entities/cash-movement.entity.ts
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  ManyToOne,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 
 export enum MovementType {
   LOAN_OUT = 'LOAN_OUT',
   PAYMENT_IN = 'PAYMENT_IN',
   EXPENSE = 'EXPENSE',
-  DEPOSIT = 'DEPOSIT'
+  DEPOSIT = 'DEPOSIT',
 }
 
 @Entity('cash_movements')

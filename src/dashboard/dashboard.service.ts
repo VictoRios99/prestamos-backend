@@ -7,21 +7,21 @@ import { Decimal } from 'decimal.js';
 
 export interface DashboardStats {
   // Métricas principales
-  dineroRestado: number;        // Total de dinero prestado
-  capitalRecuperado: number;    // Capital que ya regresó
-  interesRecabado: number;      // Total de intereses cobrados
-  capitalEnTransito: number;    // Capital que aún está prestado
-  intersesMensual: number;      // Intereses del mes actual
-  
+  dineroRestado: number; // Total de dinero prestado
+  capitalRecuperado: number; // Capital que ya regresó
+  interesRecabado: number; // Total de intereses cobrados
+  capitalEnTransito: number; // Capital que aún está prestado
+  intersesMensual: number; // Intereses del mes actual
+
   // Métricas de morosidad
-  prestamosVencidos: number;    // Cantidad de préstamos sin pagar
-  montoVencido: number;         // Monto total de préstamos sin pagar
-  
+  prestamosVencidos: number; // Cantidad de préstamos sin pagar
+  montoVencido: number; // Monto total de préstamos sin pagar
+
   // Métricas generales
   totalPrestamos: number;
   prestamosActivos: number;
   prestamosCompletados: number;
-  
+
   // Listas detalladas
   prestamosVencidosDetalle: any[];
   prestamosPorVencer: any[];
@@ -58,13 +58,13 @@ export class DashboardService {
     for (const loan of loans) {
       // Dinero prestado (total acumulado)
       dineroRestado += Number(loan.amount);
-      
+
       // Capital recuperado (lo que ya pagaron al capital)
       capitalRecuperado += Number(loan.totalCapitalPaid || 0);
-      
+
       // Interés recabado (total de intereses cobrados)
       interesRecabado += Number(loan.totalInterestPaid || 0);
-      
+
       // Capital en tránsito (saldo pendiente de préstamos activos)
       if (loan.status === LoanStatus.ACTIVE) {
         capitalEnTransito += Number(loan.currentBalance || 0);
@@ -75,7 +75,7 @@ export class DashboardService {
       if (isOverdue && loan.status === LoanStatus.ACTIVE) {
         prestamosVencidos++;
         montoVencido += Number(loan.currentBalance || 0);
-        
+
         prestamosVencidosDetalle.push({
           id: loan.id,
           customer: `${loan.customer?.firstName} ${loan.customer?.lastName}`,
@@ -83,19 +83,26 @@ export class DashboardService {
           currentBalance: loan.currentBalance,
           lastPaymentDate: loan.lastPaymentDate,
           monthsPaid: loan.monthsPaid,
-          daysSinceLastPayment: this.getDaysSinceLastPayment(loan.lastPaymentDate),
+          daysSinceLastPayment: this.getDaysSinceLastPayment(
+            loan.lastPaymentDate,
+          ),
         });
       }
 
       // Préstamos que vencen pronto (próximos 7 días)
       if (loan.status === LoanStatus.ACTIVE && !isOverdue) {
-        const daysSinceLastPayment = this.getDaysSinceLastPayment(loan.lastPaymentDate);
-        if (daysSinceLastPayment >= 23) { // Cerca de los 30 días
+        const daysSinceLastPayment = this.getDaysSinceLastPayment(
+          loan.lastPaymentDate,
+        );
+        if (daysSinceLastPayment >= 23) {
+          // Cerca de los 30 días
           prestamosPorVencer.push({
             id: loan.id,
             customer: `${loan.customer?.firstName} ${loan.customer?.lastName}`,
             currentBalance: loan.currentBalance,
-                      monthlyPayment: new Decimal(loan.currentBalance || 0).times(0.05).toNumber(),
+            monthlyPayment: new Decimal(loan.currentBalance || 0)
+              .times(0.05)
+              .toNumber(),
             daysSinceLastPayment,
           });
         }
@@ -106,8 +113,12 @@ export class DashboardService {
     const intersesMensual = await this.getMonthlyInterest();
 
     // Contar préstamos por estado
-    const prestamosActivos = loans.filter(l => l.status === LoanStatus.ACTIVE).length;
-    const prestamosCompletados = loans.filter(l => l.status === LoanStatus.PAID).length;
+    const prestamosActivos = loans.filter(
+      (l) => l.status === LoanStatus.ACTIVE,
+    ).length;
+    const prestamosCompletados = loans.filter(
+      (l) => l.status === LoanStatus.PAID,
+    ).length;
 
     return {
       dineroRestado,
@@ -120,8 +131,12 @@ export class DashboardService {
       totalPrestamos: loans.length,
       prestamosActivos,
       prestamosCompletados,
-      prestamosVencidosDetalle: prestamosVencidosDetalle.sort((a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment),
-      prestamosPorVencer: prestamosPorVencer.sort((a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment),
+      prestamosVencidosDetalle: prestamosVencidosDetalle.sort(
+        (a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment,
+      ),
+      prestamosPorVencer: prestamosPorVencer.sort(
+        (a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment,
+      ),
     };
   }
 
@@ -136,7 +151,10 @@ export class DashboardService {
       .andWhere('payment.paymentDate <= :end', { end: endOfMonth })
       .getMany();
 
-    return payments.reduce((total, payment) => total + Number(payment.interestPaid || 0), 0);
+    return payments.reduce(
+      (total, payment) => total + Number(payment.interestPaid || 0),
+      0,
+    );
   }
 
   private isLoanOverdue(loan: Loan): boolean {
@@ -147,7 +165,9 @@ export class DashboardService {
     }
 
     // Si ya pagó antes, verificar si han pasado más de 30 días desde el último pago
-    const daysSinceLastPayment = this.getDaysSinceLastPayment(loan.lastPaymentDate);
+    const daysSinceLastPayment = this.getDaysSinceLastPayment(
+      loan.lastPaymentDate,
+    );
     return daysSinceLastPayment > 30;
   }
 
@@ -168,30 +188,40 @@ export class DashboardService {
       order: { loanDate: 'DESC' },
     });
 
-    return loans.map(loan => {
+    return loans.map((loan) => {
       const isOverdue = this.isLoanOverdue(loan);
       const hasPaidThisMonth = this.hasPaidThisMonth(loan);
-      
+
       return {
         ...loan,
         paymentStatus: {
           isOverdue,
           hasPaidThisMonth,
-          daysSinceLastPayment: this.getDaysSinceLastPayment(loan.lastPaymentDate),
-          monthlyPayment: new Decimal(loan.currentBalance || 0).times(0.05).toNumber(),
-          status: isOverdue ? 'overdue' : (hasPaidThisMonth ? 'current' : 'pending')
-        }
+          daysSinceLastPayment: this.getDaysSinceLastPayment(
+            loan.lastPaymentDate,
+          ),
+          monthlyPayment: new Decimal(loan.currentBalance || 0)
+            .times(0.05)
+            .toNumber(),
+          status: isOverdue
+            ? 'overdue'
+            : hasPaidThisMonth
+              ? 'current'
+              : 'pending',
+        },
       };
     });
   }
 
   private hasPaidThisMonth(loan: Loan): boolean {
     if (!loan.lastPaymentDate) return false;
-    
+
     const now = new Date();
     const lastPayment = new Date(loan.lastPaymentDate);
-    
-    return lastPayment.getMonth() === now.getMonth() && 
-           lastPayment.getFullYear() === now.getFullYear();
+
+    return (
+      lastPayment.getMonth() === now.getMonth() &&
+      lastPayment.getFullYear() === now.getFullYear()
+    );
   }
 }

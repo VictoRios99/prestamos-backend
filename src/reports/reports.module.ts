@@ -12,14 +12,14 @@ import { CashMovement } from '../cash-movements/entities/cash-movement.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Loan, Payment, MonthlyPayment, CashMovement])
+    TypeOrmModule.forFeature([Loan, Payment, MonthlyPayment, CashMovement]),
   ],
   controllers: [ReportsController],
   providers: [
     ExcelExportService,
     LoansService,
     PaymentsService,
-    CashMovementsService
+    CashMovementsService,
   ],
   exports: [ExcelExportService],
 })

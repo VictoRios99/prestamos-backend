@@ -13,8 +13,13 @@ async function main() {
     const dataSource = app.get(DataSource);
 
     // Evita accidentes en prod
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_RESET !== 'true') {
-      throw new Error('Bloqueado en producción. Exporta ALLOW_RESET=true para permitirlo.');
+    if (
+      process.env.NODE_ENV === 'production' &&
+      process.env.ALLOW_RESET !== 'true'
+    ) {
+      throw new Error(
+        'Bloqueado en producción. Exporta ALLOW_RESET=true para permitirlo.',
+      );
     }
 
     // En el modo 4) queremos borrar TODO, incluyendo usuarios
@@ -24,7 +29,9 @@ async function main() {
       .join(', ');
 
     console.log('🧨 TRUNCATE (CASCADE) →', tableNames);
-    await dataSource.query(`TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`);
+    await dataSource.query(
+      `TRUNCATE TABLE ${tableNames} RESTART IDENTITY CASCADE;`,
+    );
     console.log('✅ Datos eliminados (incl. usuarios) e IDs reiniciados.');
   } catch (err: any) {
     console.error('❌ Error reseteando BD:', err.message || err);

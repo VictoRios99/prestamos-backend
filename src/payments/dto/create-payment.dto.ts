@@ -1,16 +1,32 @@
-import { IsNumber, IsDateString, IsOptional, IsString } from 'class-validator';
-import { IsAfterLoanDate } from '../../common/validators/is-after-loan-date.validator';
+import {
+  IsNumber,
+  IsDateString,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class CreatePaymentDto {
   @IsNumber()
   loanId: number;
 
   @IsDateString()
-  @IsAfterLoanDate('loanId', { message: 'La fecha de pago no puede ser anterior a la fecha de inicio del préstamo.' })
   paymentDate: string;
 
+  @IsOptional()
   @IsNumber()
-  amount: number;
+  @Min(0)
+  amount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  capitalAmount?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  interestAmount?: number;
 
   @IsString()
   @IsOptional()
@@ -19,4 +35,9 @@ export class CreatePaymentDto {
   @IsString()
   @IsOptional()
   notes?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  overduePeriodsPaid?: number;
 }

@@ -1,9 +1,9 @@
-import { 
-  ValidatorConstraint, 
-  ValidatorConstraintInterface, 
-  ValidationArguments, 
-  registerDecorator, 
-  ValidationOptions 
+import {
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
+  ValidationArguments,
+  registerDecorator,
+  ValidationOptions,
 } from 'class-validator';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -46,8 +46,11 @@ export class IsAfterLoanDateConstraint implements ValidatorConstraintInterface {
   }
 }
 
-export function IsAfterLoanDate(relatedPropertyName: string, validationOptions?: ValidationOptions) {
-  return (object: Object, propertyName: string) => {
+export function IsAfterLoanDate(
+  relatedPropertyName: string,
+  validationOptions?: ValidationOptions,
+) {
+  return (object: object, propertyName: string) => {
     registerDecorator({
       target: object.constructor,
       propertyName: propertyName,

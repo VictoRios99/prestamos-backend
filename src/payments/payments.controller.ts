@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Delete, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -11,7 +20,10 @@ export class PaymentsController {
 
   @Post()
   create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
-    return this.paymentsService.create(createPaymentDto, (req.user as any).userId);
+    return this.paymentsService.create(
+      createPaymentDto,
+      (req.user as any).userId,
+    );
   }
 
   @Get()
@@ -37,10 +49,5 @@ export class PaymentsController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.paymentsService.remove(+id);
-  }
-
-  @Post('settle/:loanId')
-  settleLoan(@Param('loanId') loanId: string, @Req() req: Request) {
-    return this.paymentsService.settleLoan(+loanId, (req.user as any).userId);
   }
 }

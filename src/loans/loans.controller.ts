@@ -8,7 +8,6 @@ export class LoansController {
 
   @Post()
   create(@Body() createLoanDto: CreateLoanDto) {
-    console.log('Datos recibidos en LoansController.create:', createLoanDto); // Added log
     return this.loansService.create(createLoanDto, 1); // userId fijo
   }
 
@@ -17,9 +16,14 @@ export class LoansController {
     return this.loansService.findAll();
   }
 
-  @Get(':id')
-  findById(@Param('id') id: string) {
-    return this.loansService.getLoanDetails(+id);
+  @Get('completed') // New endpoint for completed loans
+  findCompletedLoans() {
+    return this.loansService.getCompletedLoans();
+  }
+
+  @Get('customer/:customerId')
+  findByCustomer(@Param('customerId') customerId: string) {
+    return this.loansService.findByCustomer(+customerId);
   }
 
   @Get(':id/balance')
@@ -27,9 +31,9 @@ export class LoansController {
     return this.loansService.getLoanDetails(+id);
   }
 
-  @Get('customer/:customerId')
-  findByCustomer(@Param('customerId') customerId: string) {
-    return this.loansService.findByCustomer(+customerId);
+  @Get(':id')
+  findById(@Param('id') id: string) {
+    return this.loansService.getLoanDetails(+id);
   }
 
   @Delete(':id')

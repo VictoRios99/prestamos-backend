@@ -33,14 +33,14 @@ import { DashboardModule } from './dashboard/dashboard.module';
       useFactory: (config: ConfigService) => ({
         type: 'postgres',
         host: config.get<string>('DB_HOST'),
-        port: parseInt(config.get<string>('DB_PORT') ?? '5432', 10),  // ✅ aquí el fix
+        port: parseInt(config.get<string>('DB_PORT') ?? '5432', 10), // ✅ aquí el fix
         username: config.get<string>('DB_USERNAME'),
         password: config.get<string>('DB_PASSWORD'),
         database: config.get<string>('DB_DATABASE'),
         ssl:
-        config.get<string>('DB_SSL') === 'true'
-          ? { rejectUnauthorized: false }
-          : false,
+          config.get<string>('DB_SSL') === 'true'
+            ? { rejectUnauthorized: false }
+            : false,
         entities: [join(__dirname, '**', '*.entity{.ts,.js}')],
         synchronize: false,
       }),

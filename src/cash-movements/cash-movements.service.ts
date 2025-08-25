@@ -50,13 +50,19 @@ export class CashMovementsService {
     return manager.save(movement);
   }
 
-  async revertMovement(referenceType: string, referenceId: number, transactionalEntityManager: EntityManager): Promise<void> {
+  async revertMovement(
+    referenceType: string,
+    referenceId: number,
+    transactionalEntityManager: EntityManager,
+  ): Promise<void> {
     const movement = await transactionalEntityManager.findOne(CashMovement, {
       where: { referenceType, referenceId },
     });
 
     if (!movement) {
-      throw new NotFoundException(`No se encontró movimiento de caja para revertir: ${referenceType} #${referenceId}`);
+      throw new NotFoundException(
+        `No se encontró movimiento de caja para revertir: ${referenceType} #${referenceId}`,
+      );
     }
 
     await transactionalEntityManager.remove(CashMovement, movement);

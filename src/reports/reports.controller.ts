@@ -16,16 +16,17 @@ export class ReportsController {
   async exportLoans(@Res() res: Response) {
     try {
       const loans = await this.loansService.findAll();
-      
+
       // Crear buffer del Excel
       const buffer = await this.generateLoansExcel(loans);
-      
+
       res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': 'attachment; filename=prestamos.xlsx',
         'Content-Length': buffer.length,
       });
-      
+
       res.send(buffer);
     } catch (error) {
       console.error('Error exporting loans:', error);
@@ -41,10 +42,15 @@ export class ReportsController {
     @Query('reportType') reportType?: 'past' | 'all',
   ) {
     try {
-      let start: Date | undefined = startDate ? new Date(startDate) : undefined;
-      let end: Date | undefined = endDate ? new Date(new Date(endDate).setUTCHours(23, 59, 59, 999)) : undefined;
-      
-      if (reportType === 'past' || !reportType) { // 'past' is default
+      const start: Date | undefined = startDate
+        ? new Date(startDate)
+        : undefined;
+      let end: Date | undefined = endDate
+        ? new Date(new Date(endDate).setUTCHours(23, 59, 59, 999))
+        : undefined;
+
+      if (reportType === 'past' || !reportType) {
+        // 'past' is default
         if (!end) {
           end = new Date(new Date().setUTCHours(23, 59, 59, 999)); // End of today
         }
@@ -55,13 +61,14 @@ export class ReportsController {
       }
 
       const buffer = await this.excelExportService.exportPayments(start, end);
-      
+
       res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': 'attachment; filename=pagos.xlsx',
         'Content-Length': buffer.length,
       });
-      
+
       res.send(buffer);
     } catch (error) {
       console.error('Error exporting payments:', error);
@@ -74,17 +81,23 @@ export class ReportsController {
     try {
       const loans = await this.loansService.findAll();
       const payments = await this.paymentsService.findAll();
-      
+
       // Calcular métricas básicas para el reporte
-      const totalLoaned = loans.reduce((sum, loan) => sum + Number(loan.amount), 0);
-      const totalPaid = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
-      
+      const totalLoaned = loans.reduce(
+        (sum, loan) => sum + Number(loan.amount),
+        0,
+      );
+      const totalPaid = payments.reduce(
+        (sum, payment) => sum + Number(payment.amount),
+        0,
+      );
+
       return {
         totalLoans: loans.length,
         totalLoaned,
         totalPaid,
-        activeLoans: loans.filter(l => l.status === 'ACTIVE').length,
-        completedLoans: loans.filter(l => l.status === 'PAID').length,
+        activeLoans: loans.filter((l) => l.status === 'ACTIVE').length,
+        completedLoans: loans.filter((l) => l.status === 'PAID').length,
       };
     } catch (error) {
       console.error('Error generating dashboard report:', error);
@@ -95,14 +108,14 @@ export class ReportsController {
   private async generateLoansExcel(loans: any[]): Promise<Buffer> {
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
-    
+
     // Configurar metadatos
     workbook.creator = 'Sistema de Préstamos';
     workbook.created = new Date();
-    
+
     // Crear hoja principal
     const worksheet = workbook.addWorksheet('Préstamos');
-    
+
     // Configurar columnas
     worksheet.columns = [
       { header: 'ID', key: 'id', width: 10 },
@@ -112,7 +125,7 @@ export class ReportsController {
       { header: 'Saldo Actual', key: 'currentBalance', width: 15 },
       { header: 'Total Interés Pagado', key: 'totalInterestPaid', width: 18 },
       { header: 'Total Capital Pagado', key: 'totalCapitalPaid', width: 18 },
-      { header: 'Meses Pagados', key: 'monthsPaid', width: 15 },
+      { header: 'Quincenas Pagadas', key: 'monthsPaid', width: 15 },
       { header: 'Estado', key: 'status', width: 12 },
       { header: 'Último Pago', key: 'lastPaymentDate', width: 15 },
     ];
@@ -122,7 +135,7 @@ export class ReportsController {
     worksheet.getRow(1).fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF366092' }
+      fgColor: { argb: 'FF366092' },
     };
     worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
@@ -130,7 +143,9 @@ export class ReportsController {
     loans.forEach((loan) => {
       const row = worksheet.addRow({
         id: loan.id,
-        customer: loan.customer ? `${loan.customer.firstName} ${loan.customer.lastName}` : 'N/A',
+        customer: loan.customer
+          ? `${loan.customer.firstName} ${loan.customer.lastName}`
+          : 'N/A',
         loanDate: loan.loanDate,
         amount: Number(loan.amount),
         currentBalance: Number(loan.currentBalance || 0),
@@ -142,7 +157,12 @@ export class ReportsController {
       });
 
       // Formato de números como moneda
-      ['amount', 'currentBalance', 'totalInterestPaid', 'totalCapitalPaid'].forEach(col => {
+      [
+        'amount',
+        'currentBalance',
+        'totalInterestPaid',
+        'totalCapitalPaid',
+      ].forEach((col) => {
         const cell = row.getCell(col);
         cell.numFmt = '"$"#,##0.00';
       });
@@ -163,10 +183,10 @@ export class ReportsController {
 
   private getStatusText(status: string): string {
     const statusMap = {
-      'ACTIVE': 'Activo',
-      'PAID': 'Pagado',
-      'OVERDUE': 'Vencido',
-      'CANCELLED': 'Cancelado'
+      ACTIVE: 'Activo',
+      PAID: 'Pagado',
+      OVERDUE: 'Vencido',
+      CANCELLED: 'Cancelado',
     };
     return statusMap[status] || status;
   }

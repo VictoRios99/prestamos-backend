@@ -47,18 +47,18 @@ describe('AuthService', () => {
       };
 
       mockUsersService.findByUsername.mockResolvedValue(user);
-      
+
       const result = await service.validateUser('testuser', 'password');
-      
+
       expect(result).toBeDefined();
       expect(result.password).toBeUndefined();
     });
 
     it('should return null if credentials are invalid', async () => {
       mockUsersService.findByUsername.mockResolvedValue(null);
-      
+
       const result = await service.validateUser('testuser', 'wrongpassword');
-      
+
       expect(result).toBeNull();
     });
   });

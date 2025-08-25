@@ -1,4 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  OneToMany,
+  JoinColumn,
+} from 'typeorm';
 import { Customer } from '../../customers/entities/customer.entity';
 import { User } from '../../users/entities/user.entity';
 import { Payment } from '../../payments/entities/payment.entity';
@@ -8,7 +17,7 @@ export enum LoanStatus {
   ACTIVE = 'ACTIVE',
   PAID = 'PAID',
   OVERDUE = 'OVERDUE',
-  CANCELLED = 'CANCELLED'
+  CANCELLED = 'CANCELLED',
 }
 
 @Entity('loans')
@@ -16,7 +25,7 @@ export class Loan {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Customer, customer => customer.loans)
+  @ManyToOne(() => Customer, (customer) => customer.loans)
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
@@ -26,22 +35,54 @@ export class Loan {
   @Column({ type: 'decimal', precision: 10, scale: 4 })
   amount: string;
 
-  @Column({ name: 'current_balance', type: 'decimal', precision: 10, scale: 4, nullable: true })
+  @Column({
+    name: 'current_balance',
+    type: 'decimal',
+    precision: 10,
+    scale: 4,
+    nullable: true,
+  })
   currentBalance: string;
 
-  @Column({ name: 'total_interest_paid', type: 'decimal', precision: 10, scale: 4, default: 0 })
+  @Column({
+    name: 'total_interest_paid',
+    type: 'decimal',
+    precision: 10,
+    scale: 4,
+    default: 0,
+  })
   totalInterestPaid: string;
 
-  @Column({ name: 'total_capital_paid', type: 'decimal', precision: 10, scale: 4, default: 0 })
+  @Column({
+    name: 'total_capital_paid',
+    type: 'decimal',
+    precision: 10,
+    scale: 4,
+    default: 0,
+  })
   totalCapitalPaid: string;
 
-  @Column({ name: 'monthly_interest_rate', type: 'decimal', precision: 5, scale: 2, default: 5 })
+  @Column({
+    name: 'monthly_interest_rate',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+  })
   monthlyInterestRate: string;
+
+  @Column({ name: 'term', type: 'integer', nullable: true })
+  term: number;
+
+  @Column({ nullable: true })
+  modality: string; // 'quincenas' or 'meses'
+
+  @Column({ name: 'loan_type', nullable: true })
+  loanType: string;
 
   @Column({
     type: 'enum',
     enum: LoanStatus,
-    default: LoanStatus.ACTIVE
+    default: LoanStatus.ACTIVE,
   })
   status: LoanStatus;
 
@@ -58,10 +99,10 @@ export class Loan {
   @JoinColumn({ name: 'created_by' })
   createdBy: User;
 
-  @OneToMany(() => Payment, payment => payment.loan)
+  @OneToMany(() => Payment, (payment) => payment.loan)
   payments: Payment[];
 
-  @OneToMany(() => MonthlyPayment, monthlyPayment => monthlyPayment.loan)
+  @OneToMany(() => MonthlyPayment, (monthlyPayment) => monthlyPayment.loan)
   monthlyPayments: MonthlyPayment[];
 
   @CreateDateColumn({ name: 'created_at' })

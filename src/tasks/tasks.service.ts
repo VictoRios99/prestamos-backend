@@ -14,9 +14,10 @@ export class TasksService {
   async checkOverdueLoans() {
     this.logger.log('Checking for overdue loans...');
     const overdueLoans = await this.loansService.findOverdueLoans();
-    
+
     // Aquí puedes enviar notificaciones, emails, etc.
-    overdueLoans.forEach(loan => {
+    overdueLoans.loans.forEach((loan) => {
+      // Access the 'loans' property
       this.logger.warn(`Loan #${loan.id} is overdue`);
     });
   }

@@ -1,4 +1,12 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  ManyToOne,
+} from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Loan } from '../../loans/entities/loan.entity';
 
@@ -7,17 +15,11 @@ export class Customer {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ unique: true })
-  code: string;
-
   @Column()
   firstName: string;
 
   @Column()
   lastName: string;
-
-  @Column({ unique: true })
-  documentNumber: string;
 
   @Column({ nullable: true })
   phone: string;
@@ -34,7 +36,7 @@ export class Customer {
   @ManyToOne(() => User)
   createdBy: User;
 
-  @OneToMany(() => Loan, loan => loan.customer)
+  @OneToMany(() => Loan, (loan) => loan.customer)
   loans: Loan[];
 
   @CreateDateColumn()

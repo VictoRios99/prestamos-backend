@@ -1,11 +1,19 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { Loan } from '../../loans/entities/loan.entity';
 import { User } from '../../users/entities/user.entity';
 
 export enum PaymentType {
   CAPITAL = 'CAPITAL',
   INTEREST = 'INTEREST',
-  BOTH = 'BOTH'
+  BOTH = 'BOTH',
 }
 
 @Entity('payments')
@@ -13,11 +21,10 @@ export class Payment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => Loan, loan => loan.payments)
+  @ManyToOne(() => Loan, (loan) => loan.payments)
   @JoinColumn({ name: 'loan_id' })
   loan: Loan;
 
-  
   @Column({ name: 'payment_date', type: 'date' })
   paymentDate: Date;
 
@@ -28,7 +35,7 @@ export class Payment {
     name: 'payment_type',
     type: 'enum',
     enum: PaymentType,
-    default: PaymentType.CAPITAL
+    default: PaymentType.CAPITAL,
   })
   paymentType: PaymentType;
 
@@ -41,10 +48,22 @@ export class Payment {
   @Column({ nullable: true, type: 'text' })
   notes: string;
 
-  @Column({ name: 'interest_paid', type: 'decimal', precision: 10, scale: 4, default: 0 })
+  @Column({
+    name: 'interest_paid',
+    type: 'decimal',
+    precision: 10,
+    scale: 4,
+    default: 0,
+  })
   interestPaid: string;
 
-  @Column({ name: 'capital_paid', type: 'decimal', precision: 10, scale: 4, default: 0 })
+  @Column({
+    name: 'capital_paid',
+    type: 'decimal',
+    precision: 10,
+    scale: 4,
+    default: 0,
+  })
   capitalPaid: string;
 
   @ManyToOne(() => User)

@@ -5,32 +5,40 @@ import { ConfigService } from '@nestjs/config';
 import { useContainer } from 'class-validator';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  
-  // Configurar class-validator para usar el contenedor de NestJS
+  // Desactiva CORS aquí y lo habilitamos explícitamente abajo
+  const app = await NestFactory.create(AppModule, { cors: false });
+
+  // class-validator con el contenedor de Nest
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
-  // Configurar CORS
+  // Orígenes permitidos (local + Vercel por env)
+  const defaultOrigins = ['http://localhost:4200', 'http://127.0.0.1:4200'];
+  const frontendOrigin = process.env.FRONTEND_ORIGIN; // p.ej. https://tu-app.vercel.app
+  const origins = frontendOrigin ? [...defaultOrigins, frontendOrigin] : defaultOrigins;
+
   app.enableCors({
-    origin: ['http://localhost:4200', 'http://127.0.0.1:4200'],
+    origin: origins,
     credentials: true,
   });
 
-  // Configurar validación global pero más permisiva
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: false, // Permitir propiedades adicionales
-    forbidNonWhitelisted: false, // No rechazar propiedades no listadas
-    transform: true,
-  }));
+  // Validación global (tal como la tienes)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: false,
+      forbidNonWhitelisted: false,
+      transform: true,
+    }),
+  );
 
-  // Configurar prefix global para API
+  // Prefijo global
   app.setGlobalPrefix('api');
 
+  // Puerto: Render inyecta process.env.PORT
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('PORT') || 3000;
-  
-  app.setGlobalPrefix('api');
-  await app.listen(process.env.PORT || 3000, '0.0.0.0');
+  const portFromEnv = process.env.PORT ? Number(process.env.PORT) : undefined;
+  const port = portFromEnv ?? configService.get<number>('PORT') ?? 3000;
+
+  await app.listen(port, '0.0.0.0');
   console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();

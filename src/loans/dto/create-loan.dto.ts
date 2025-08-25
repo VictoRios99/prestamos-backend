@@ -1,4 +1,12 @@
-import { IsNumber, IsDateString, IsOptional, IsString, IsNumberString } from 'class-validator';
+import {
+  IsNumber,
+  IsDateString,
+  IsOptional,
+  IsString,
+  IsNumberString,
+  IsIn,
+  IsInt,
+} from 'class-validator';
 
 export class CreateLoanDto {
   @IsNumber()
@@ -18,6 +26,22 @@ export class CreateLoanDto {
   @IsString()
   @IsOptional()
   monthlyInterestRate?: string;
+
+  @IsInt()
+  @IsOptional()
+  term?: number; // Plazo en quincenas, opcional
+
+  @IsString()
+  @IsOptional()
+  modality?: string;
+
+  @IsString()
+  @IsOptional()
+  loanType?: string;
+
+  @IsString()
+  @IsOptional()
+  totalToPay?: string;
 
   // Removemos termMonths, paymentFrequency ya que el sistema es flexible
   // El cliente paga cuando puede, mínimo el 5% mensual

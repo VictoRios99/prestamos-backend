@@ -12,7 +12,10 @@ export class CustomersService {
     private customersRepository: Repository<Customer>,
   ) {}
 
-  async create(createCustomerDto: CreateCustomerDto, userId: number): Promise<Customer> {
+  async create(
+    createCustomerDto: CreateCustomerDto,
+    userId: number,
+  ): Promise<Customer> {
     const customer = this.customersRepository.create({
       ...createCustomerDto,
       createdBy: { id: userId },
@@ -38,7 +41,10 @@ export class CustomersService {
     return customer;
   }
 
-  async update(id: number, updateCustomerDto: UpdateCustomerDto): Promise<Customer> {
+  async update(
+    id: number,
+    updateCustomerDto: UpdateCustomerDto,
+  ): Promise<Customer> {
     await this.customersRepository.update(id, updateCustomerDto);
     return this.findOne(id);
   }

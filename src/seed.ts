@@ -15,7 +15,9 @@ async function bootstrap() {
     console.log('➕ Creando o verificando usuarios...');
 
     // Admin
-    let adminUser = await userRepository.findOne({ where: { username: 'admin' } });
+    let adminUser = await userRepository.findOne({
+      where: { username: 'admin' },
+    });
     if (!adminUser) {
       const adminPassword = await bcrypt.hash('admin123', 10);
       adminUser = userRepository.create({
@@ -33,7 +35,9 @@ async function bootstrap() {
     }
 
     // Operador
-    let operatorUser = await userRepository.findOne({ where: { username: 'operador' } });
+    let operatorUser = await userRepository.findOne({
+      where: { username: 'operador' },
+    });
     if (!operatorUser) {
       const operatorPassword = await bcrypt.hash('operator123', 10);
       operatorUser = userRepository.create({
@@ -60,7 +64,7 @@ async function bootstrap() {
   }
 }
 
-bootstrap().catch(error => {
+bootstrap().catch((error) => {
   console.error('❌ Error crítico en el seed:', error);
   process.exit(1);
 });
