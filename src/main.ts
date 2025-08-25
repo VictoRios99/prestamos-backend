@@ -11,20 +11,30 @@ async function bootstrap() {
   // class-validator con el contenedor de Nest
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
 
-  // Orígenes permitidos (local + Vercel por env)
-  const defaultOrigins = ['http://localhost:4200', 'http://127.0.0.1:4200'];
-  const frontendOrigin = process.env.FRONTEND_ORIGIN; // p.ej. https://tu-app.vercel.app
-  const origins = frontendOrigin ? [...defaultOrigins, frontendOrigin] : defaultOrigins;
+  const allowedOrigins = [
+    'http://localhost:4200',
+    'http://127.0.0.1:4200',
+    'https://prestamos-frontend-static.vercel.app/', // <— TU dominio real en Vercel
+    // 'https://prestamos-frontend.vercel.app',      // (opcional) si tienes otro proyecto/alias
+  ];
+
+  const frontendOriginsFromEnv = process.env.FRONTEND_ORIGIN;
+  if (frontendOriginsFromEnv) {
+    const additionalOrigins = frontendOriginsFromEnv.split(',').map(origin => origin.trim());
+    allowedOrigins.push(...additionalOrigins);
+  }
 
   app.enableCors({
-    origin: [
-      'http://localhost:4200',
-      'http://127.0.0.1:4200',
-      'https://prestamos-frontend-static-5o3zbir5w.vercel.app/'  // <- reemplaza por tu URL real
-    ],
+    origin: (origin, callback) => {
+      // permitir llamadas sin origin (p.ej. curl/health) y orígenes listados
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
-    allowedHeaders: ['Content-Type','Authorization']
+    allowedHeaders: ['Content-Type','Authorization'],
   });
 
   // Validación global (tal como la tienes)
