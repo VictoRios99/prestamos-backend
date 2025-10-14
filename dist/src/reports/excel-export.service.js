@@ -1,0 +1,242 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ExcelExportService = void 0;
+const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const payment_entity_1 = require("../payments/entities/payment.entity");
+const loan_entity_1 = require("../loans/entities/loan.entity");
+const ExcelJS = require("exceljs");
+let ExcelExportService = class ExcelExportService {
+    paymentsRepository;
+    loansRepository;
+    constructor(paymentsRepository, loansRepository) {
+        this.paymentsRepository = paymentsRepository;
+        this.loansRepository = loansRepository;
+    }
+    async exportPayments(startDate, endDate) {
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Sistema de Préstamos';
+        workbook.created = new Date();
+        const paymentsSheet = workbook.addWorksheet('Pagos');
+        await this.createPaymentsSheet(paymentsSheet, startDate, endDate);
+        const summarySheet = workbook.addWorksheet('Resumen');
+        await this.createSummarySheet(summarySheet, startDate, endDate);
+        const buffer = await workbook.xlsx.writeBuffer();
+        return buffer;
+    }
+    async createPaymentsSheet(sheet, startDate, endDate) {
+        sheet.columns = [
+            { header: 'ID Pago', key: 'paymentId', width: 10 },
+            { header: 'Fecha', key: 'paymentDate', width: 12 },
+            { header: 'ID Préstamo', key: 'loanId', width: 12 },
+            { header: 'Cliente', key: 'customer', width: 25 },
+            { header: 'Monto Total', key: 'totalAmount', width: 15 },
+            { header: 'Interés Pagado', key: 'interestPaid', width: 15 },
+            { header: 'Capital Pagado', key: 'capitalPaid', width: 15 },
+            { header: 'Tipo de Pago', key: 'paymentType', width: 12 },
+            { header: 'Método', key: 'paymentMethod', width: 12 },
+            { header: 'Plazos', key: 'termProgress', width: 15 },
+            { header: 'Recibo', key: 'receiptNumber', width: 15 },
+            { header: 'Saldo Restante', key: 'remainingBalance', width: 15 },
+            { header: 'Notas', key: 'notes', width: 30 },
+        ];
+        sheet.getRow(1).font = { bold: true };
+        sheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF366092' },
+        };
+        sheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        let whereClause = {};
+        if (startDate && endDate) {
+            whereClause = {
+                paymentDate: (0, typeorm_2.Between)(startDate, endDate),
+            };
+        }
+        const payments = await this.paymentsRepository.find({
+            where: whereClause,
+            relations: ['loan', 'loan.customer'],
+            order: { paymentDate: 'DESC' },
+            cache: false,
+        });
+        payments.forEach((payment, index) => {
+            const row = sheet.addRow({
+                paymentId: payment.id,
+                paymentDate: payment.paymentDate,
+                loanId: payment.loan?.id || 'N/A',
+                customer: payment.loan && payment.loan.customer
+                    ? `${payment.loan.customer.firstName} ${payment.loan.customer.lastName}`.trim()
+                    : 'N/A',
+                totalAmount: Number(payment.amount),
+                interestPaid: Number(payment.interestPaid || 0),
+                capitalPaid: Number(payment.capitalPaid || 0),
+                paymentType: this.getPaymentTypeText(payment.paymentType),
+                paymentMethod: payment.paymentMethod,
+                receiptNumber: payment.receiptNumber,
+                termProgress: payment.loan?.term
+                    ? `${(payment.loan.monthsPaid || 0) * 2}/${payment.loan.term * 2} quincenas`
+                    : '',
+                remainingBalance: Number(payment.loan?.currentBalance || 0),
+                notes: payment.notes || '',
+            });
+            [
+                'totalAmount',
+                'interestPaid',
+                'capitalPaid',
+                'remainingBalance',
+            ].forEach((col) => {
+                const cell = row.getCell(col);
+                cell.numFmt = '"$"#,##0.00';
+            });
+            row.getCell('paymentDate').numFmt = 'dd/mm/yyyy';
+        });
+        if (payments.length > 0) {
+            const totalRow = sheet.addRow({
+                paymentId: '',
+                paymentDate: '',
+                loanId: '',
+                customer: 'TOTALES:',
+                totalAmount: { formula: `SUM(E2:E${payments.length + 1})` },
+                interestPaid: { formula: `SUM(F2:F${payments.length + 1})` },
+                capitalPaid: { formula: `SUM(G2:G${payments.length + 1})` },
+                paymentType: '',
+                paymentMethod: '',
+                receiptNumber: '',
+                remainingBalance: '',
+                notes: '',
+            });
+            totalRow.font = { bold: true };
+            totalRow.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF2F2F2' },
+            };
+        }
+    }
+    async createSummarySheet(sheet, startDate, endDate) {
+        sheet.columns = [
+            { header: 'Concepto', key: 'concept', width: 30 },
+            { header: 'Valor', key: 'value', width: 20 },
+        ];
+        sheet.getRow(1).font = { bold: true };
+        sheet.getRow(1).fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF366092' },
+        };
+        sheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
+        const stats = await this.calculateStats(startDate, endDate);
+        const summaryData = [
+            {
+                concept: 'Período del Reporte',
+                value: this.formatDateRange(startDate, endDate),
+            },
+            { concept: '', value: '' },
+            { concept: 'MÉTRICAS GENERALES', value: '' },
+            { concept: 'Total de Pagos', value: stats.totalPayments },
+            { concept: 'Monto Total Recibido', value: stats.totalAmount },
+            { concept: 'Total Intereses Cobrados', value: stats.totalInterest },
+            { concept: 'Total Capital Recuperado', value: stats.totalCapital },
+            { concept: '', value: '' },
+            { concept: 'ESTADO DE PRÉSTAMOS', value: '' },
+            { concept: 'Préstamos Activos', value: stats.activeLoans },
+            { concept: 'Préstamos Completados', value: stats.completedLoans },
+            { concept: 'Préstamos Vencidos', value: stats.overdueLoans },
+            { concept: 'Capital en Tránsito', value: stats.capitalInTransit },
+            { concept: '', value: '' },
+            { concept: 'RENDIMIENTO', value: '' },
+            { concept: 'Promedio por Pago', value: stats.averagePayment },
+            { concept: 'Interés Mensual Promedio', value: stats.monthlyInterestRate },
+        ];
+        summaryData.forEach((item, index) => {
+            const row = sheet.addRow(item);
+            if (item.concept.includes('MÉTRICAS') ||
+                item.concept.includes('ESTADO') ||
+                item.concept.includes('RENDIMIENTO')) {
+                row.font = { bold: true };
+                row.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: 'FFF2F2F2' },
+                };
+            }
+            if (typeof item.value === 'number' &&
+                (item.concept.includes('Monto') ||
+                    item.concept.includes('Intereses') ||
+                    item.concept.includes('Capital') ||
+                    item.concept.includes('Promedio'))) {
+                row.getCell('value').numFmt = '"$"#,##0.00';
+            }
+        });
+    }
+    async calculateStats(startDate, endDate) {
+        let whereClause = {};
+        if (startDate && endDate) {
+            whereClause = { paymentDate: (0, typeorm_2.Between)(startDate, endDate) };
+        }
+        const payments = await this.paymentsRepository.find({
+            where: whereClause,
+            relations: ['loan', 'loan.customer'],
+            cache: false,
+        });
+        const allLoans = await this.loansRepository.find();
+        const totalPayments = payments.length;
+        const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
+        const totalInterest = payments.reduce((sum, p) => sum + (p.interestPaid || 0), 0);
+        const totalCapital = payments.reduce((sum, p) => sum + (p.capitalPaid || 0), 0);
+        const activeLoans = allLoans.filter((l) => l.status === 'ACTIVE').length;
+        const completedLoans = allLoans.filter((l) => l.status === 'PAID').length;
+        const overdueLoans = allLoans.filter((l) => l.status === 'OVERDUE').length;
+        const capitalInTransit = allLoans
+            .filter((l) => l.status === 'ACTIVE')
+            .reduce((sum, l) => sum + (l.currentBalance || 0), 0);
+        return {
+            totalPayments,
+            totalAmount,
+            totalInterest,
+            totalCapital,
+            activeLoans,
+            completedLoans,
+            overdueLoans,
+            capitalInTransit,
+            averagePayment: totalPayments > 0 ? Math.ceil(totalAmount / totalPayments) : 0,
+            monthlyInterestRate: totalAmount > 0 ? Math.ceil((totalInterest / totalAmount) * 100) : 0,
+        };
+    }
+    getPaymentTypeText(paymentType) {
+        const types = {
+            INTEREST: 'Solo Interés',
+            CAPITAL: 'Solo Capital',
+            BOTH: 'Interés + Capital',
+        };
+        return types[paymentType] || paymentType;
+    }
+    formatDateRange(startDate, endDate) {
+        if (!startDate || !endDate) {
+            return 'Todos los registros';
+        }
+        return `${startDate.toLocaleDateString('es-MX')} - ${endDate.toLocaleDateString('es-MX')}`;
+    }
+};
+exports.ExcelExportService = ExcelExportService;
+exports.ExcelExportService = ExcelExportService = __decorate([
+    (0, common_1.Injectable)(),
+    __param(0, (0, typeorm_1.InjectRepository)(payment_entity_1.Payment)),
+    __param(1, (0, typeorm_1.InjectRepository)(loan_entity_1.Loan)),
+    __metadata("design:paramtypes", [typeorm_2.Repository,
+        typeorm_2.Repository])
+], ExcelExportService);
+//# sourceMappingURL=excel-export.service.js.map
