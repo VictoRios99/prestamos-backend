@@ -1,259 +1,98 @@
-# Sistema de Gestión de Préstamos
+<p align="center">
+  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+</p>
 
-Sistema full-stack para la gestión de préstamos personales con seguimiento de pagos, clientes, y reportes financieros.
+[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
+[circleci-url]: https://circleci.com/gh/nestjs/nest
 
-## Tecnologías
+  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
+    <p align="center">
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
+<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
+<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
+<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
+<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
+  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
+    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
+  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+</p>
+  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
+  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-### Backend
-- **NestJS** 10+
-- **TypeORM**
-- **PostgreSQL**
-- **JWT Authentication**
-- **Class Validator**
+## Description
 
-### Frontend
-- **Angular** 18+ (Standalone Components)
-- **Angular Material**
-- **RxJS**
-- **SweetAlert2**
+[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Estructura del Proyecto
-
-```
-prestamos/
-├── prestamos-backend/       # API REST con NestJS
-├── prestamos-frontend/      # Aplicación Angular
-└── PROJECT_DOCUMENTATION.md # Documentación completa
-```
-
-## Requisitos Previos
-
-- Node.js 20.x
-- PostgreSQL 14+
-- npm 10.x
-
-## Instalación
-
-### 1. Clonar el Repositorio
+## Project setup
 
 ```bash
-git clone <repository-url>
-cd prestamos
+$ npm install
 ```
 
-### 2. Configurar Backend
+## Compile and run the project
 
 ```bash
-cd prestamos-backend
-npm install
+# development
+$ npm run start
+
+# watch mode
+$ npm run start:dev
+
+# production mode
+$ npm run start:prod
 ```
 
-Crear archivo `.env` en `prestamos-backend/`:
-
-```env
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=postgres
-DB_PASSWORD=tu_password
-DB_DATABASE=prestamos_db
-
-# JWT
-JWT_SECRET=tu_jwt_secret_key
-JWT_EXPIRATION=24h
-
-# Server
-PORT=3000
-```
-
-Crear la base de datos:
-
-```sql
-CREATE DATABASE prestamos_db;
-```
-
-Ejecutar migraciones:
+## Run tests
 
 ```bash
-npm run migration:run
+# unit tests
+$ npm run test
+
+# e2e tests
+$ npm run test:e2e
+
+# test coverage
+$ npm run test:cov
 ```
 
-Ejecutar seeder (opcional):
+## Deployment
+
+When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+
+If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
 
 ```bash
-npm run seed
+$ npm install -g @nestjs/mau
+$ mau deploy
 ```
 
-### 3. Configurar Frontend
+With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
-```bash
-cd ../prestamos-frontend
-npm install
-```
+## Resources
 
-Configurar archivo de entorno en `prestamos-frontend/src/environments/environment.ts`:
+Check out a few resources that may come in handy when working with NestJS:
 
-```typescript
-export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:3000/api'
-};
-```
+- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
+- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
+- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
+- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
+- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
+- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
+- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
+- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
 
-## Ejecutar el Proyecto
+## Support
 
-### Backend (Terminal 1)
+Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
 
-```bash
-cd prestamos-backend
-npm run start:dev
-```
+## Stay in touch
 
-El backend estará disponible en: `http://localhost:3000`
+- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
+- Website - [https://nestjs.com](https://nestjs.com/)
+- Twitter - [@nestframework](https://twitter.com/nestframework)
 
-### Frontend (Terminal 2)
+## License
 
-```bash
-cd prestamos-frontend
-npm start
-```
-
-El frontend estará disponible en: `http://localhost:4200`
-
-## Compilar para Producción
-
-### Backend
-
-```bash
-cd prestamos-backend
-npm run build
-```
-
-Los archivos compilados estarán en `prestamos-backend/dist/`
-
-Para ejecutar en producción:
-
-```bash
-npm run start:prod
-```
-
-### Frontend
-
-```bash
-cd prestamos-frontend
-npm run build
-```
-
-Los archivos compilados estarán en `prestamos-frontend/dist/prestamos-frontend/`
-
-Para servir en producción, usar un servidor web como **Nginx** o **Apache**.
-
-## Características Principales
-
-### Gestión de Clientes
-- CRUD completo de clientes
-- Historial de préstamos por cliente
-
-### Tipos de Préstamos
-
-#### Préstamo Cápsula (Plazo Fijo)
-- Plazo definido (meses o quincenas)
-- Pagos programados automáticos
-- Seguimiento de períodos vencidos
-
-#### Préstamo Indefinido
-- Sin plazo definido
-- Pago flexible de interés y capital
-- Ideal para líneas de crédito
-
-### Sistema de Pagos
-- Registro de pagos con distribución automática (interés/capital)
-- Cargos extras opcionales (mora)
-- Historial completo de pagos
-- Números de recibo automáticos
-
-### Dashboard
-- Métricas en tiempo real
-- Total prestado y recuperado
-- Intereses recabados
-- Préstamos vencidos
-- Préstamos por vencer
-- Estadísticas por tipo de préstamo
-
-### Movimientos de Caja
-- Registro automático de entradas y salidas
-- Saldo actualizado en tiempo real
-- Historial completo de transacciones
-
-## Usuarios por Defecto (Seeder)
-
-```
-Usuario: admin
-Contraseña: admin123
-```
-
-## Documentación
-
-Para información detallada sobre:
-- Arquitectura del sistema
-- Modelo de base de datos
-- Flujos de negocio
-- Reglas de cálculo
-- API Endpoints
-- Convenciones de código
-
-Consultar: **[PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md)**
-
-## Scripts Disponibles
-
-### Backend
-
-```bash
-npm run start:dev    # Desarrollo con hot-reload
-npm run build        # Compilar para producción
-npm run start:prod   # Ejecutar en producción
-npm run migration:generate  # Generar migración
-npm run migration:run       # Ejecutar migraciones
-npm run seed         # Ejecutar seeder
-```
-
-### Frontend
-
-```bash
-npm start            # Desarrollo (http://localhost:4200)
-npm run build        # Compilar para producción
-npm run build --configuration production  # Build optimizado
-npm test             # Ejecutar tests
-```
-
-## Estructura de la Base de Datos
-
-### Tablas Principales
-
-- **users**: Usuarios del sistema
-- **customers**: Clientes
-- **loans**: Préstamos
-- **payments**: Pagos realizados
-- **monthly_payments**: Pagos programados (solo para préstamos cápsula)
-- **cash_movements**: Movimientos de caja
-
-## Contribuir
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
-
-## Licencia
-
-Este proyecto es privado y de uso interno.
-
-## Contacto
-
-Para consultas o soporte, contactar al administrador del sistema.
-
----
-
-**Versión:** 1.0
-**Última Actualización:** 2024-10-12
+Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
