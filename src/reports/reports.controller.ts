@@ -1,9 +1,15 @@
-import { Controller, Get, Res, Query } from '@nestjs/common';
+import { Controller, Get, Res, Query, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { LoansService } from '../loans/loans.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ExcelExportService } from './excel-export.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN)
 @Controller('reports')
 export class ReportsController {
   constructor(

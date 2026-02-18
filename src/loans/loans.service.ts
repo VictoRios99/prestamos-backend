@@ -302,6 +302,41 @@ export class LoansService {
     };
   }
 
+  async updateOverdueStatuses(): Promise<{ markedOverdue: number; restoredActive: number }> {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Marcar como OVERDUE: préstamos ACTIVE con >30 días sin pago
+    const toOverdue = await this.loansRepository
+      .createQueryBuilder('loan')
+      .where('loan.status = :status', { status: LoanStatus.ACTIVE })
+      .andWhere('loan.currentBalance > 0')
+      .andWhere(
+        '(loan.lastPaymentDate IS NULL AND loan.loanDate < :thirtyDaysAgo) OR (loan.lastPaymentDate IS NOT NULL AND loan.lastPaymentDate < :thirtyDaysAgo)',
+        { thirtyDaysAgo },
+      )
+      .getMany();
+
+    for (const loan of toOverdue) {
+      loan.status = LoanStatus.OVERDUE;
+      await this.loansRepository.save(loan);
+    }
+
+    // Restaurar a ACTIVE: préstamos OVERDUE que ya pagaron recientemente
+    const toActive = await this.loansRepository
+      .createQueryBuilder('loan')
+      .where('loan.status = :status', { status: LoanStatus.OVERDUE })
+      .andWhere('loan.currentBalance > 0')
+      .andWhere('loan.lastPaymentDate >= :thirtyDaysAgo', { thirtyDaysAgo })
+      .getMany();
+
+    for (const loan of toActive) {
+      loan.status = LoanStatus.ACTIVE;
+      await this.loansRepository.save(loan);
+    }
+
+    return { markedOverdue: toOverdue.length, restoredActive: toActive.length };
+  }
+
   async getCompletedLoans(): Promise<Loan[]> {
     try {
       const completedLoans = await this.loansRepository.find({

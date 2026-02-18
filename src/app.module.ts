@@ -16,6 +16,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { CashMovementsModule } from './cash-movements/cash-movements.module';
 import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
     CashMovementsModule,
     ReportsModule,
     DashboardModule,
+    NotificationsModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],

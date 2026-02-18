@@ -1,14 +1,17 @@
-import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Request } from 'express';
 
+@UseGuards(JwtAuthGuard)
 @Controller('loans')
 export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
   @Post()
-  create(@Body() createLoanDto: CreateLoanDto) {
-    return this.loansService.create(createLoanDto, 1); // userId fijo
+  create(@Body() createLoanDto: CreateLoanDto, @Req() req: Request) {
+    return this.loansService.create(createLoanDto, (req.user as any).userId);
   }
 
   @Get()

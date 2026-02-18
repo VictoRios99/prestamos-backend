@@ -1,6 +1,6 @@
 // src/tasks/tasks.service.ts
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron } from '@nestjs/schedule';
 import { LoansService } from '../loans/loans.service';
 
 @Injectable()
@@ -13,13 +13,8 @@ export class TasksService {
   @Cron('0 9 * * *')
   async checkOverdueLoans() {
     this.logger.log('Checking for overdue loans...');
-    const overdueLoans = await this.loansService.findOverdueLoans();
-
-    // Aquí puedes enviar notificaciones, emails, etc.
-    overdueLoans.loans.forEach((loan) => {
-      // Access the 'loans' property
-      this.logger.warn(`Loan #${loan.id} is overdue`);
-    });
+    const result = await this.loansService.updateOverdueStatuses();
+    this.logger.log(`Overdue check complete: ${result.markedOverdue} marked overdue, ${result.restoredActive} restored to active`);
   }
 
   // Ejecutar el primer día de cada mes

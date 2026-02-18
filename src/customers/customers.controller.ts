@@ -9,19 +9,24 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Request } from 'express';
 
+@UseGuards(JwtAuthGuard)
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  create(@Body() createCustomerDto: CreateCustomerDto) {
-    return this.customersService.create(createCustomerDto, 1); // userId fijo por ahora
+  create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: Request) {
+    return this.customersService.create(createCustomerDto, (req.user as any).userId);
   }
 
   @Get()

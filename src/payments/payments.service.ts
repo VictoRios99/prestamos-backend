@@ -158,8 +158,29 @@ export class PaymentsService {
               if (actualCapitalPaid > currentBalance) {
                 actualCapitalPaid = currentBalance;
               }
-              loan.currentBalance = currentBalance - totalPaymentReceived;
+              // Cápsula: balance = total a pagar, restar pago completo
+              // Indefinido: balance = solo capital, restar solo capital
+              if (loan.loanType === 'Cápsula') {
+                loan.currentBalance = currentBalance - totalPaymentReceived;
+              } else {
+                loan.currentBalance = currentBalance - actualCapitalPaid;
+              }
               loan.monthsPaid = (loan.monthsPaid || 0) + 1;
+
+              // Marcar el siguiente monthly_payment impago como pagado
+              if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
+                const nextUnpaid = loan.monthlyPayments
+                  .filter(mp => !mp.isPaid)
+                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+                if (nextUnpaid) {
+                  nextUnpaid.isPaid = true;
+                  nextUnpaid.paidAmount = totalPaymentReceived;
+                  nextUnpaid.paymentDate = new Date(paymentDate);
+                  nextUnpaid.interestPaid = actualInterestPaid;
+                  nextUnpaid.capitalPaid = actualCapitalPaid;
+                  await transactionalEntityManager.save(MonthlyPayment, nextUnpaid);
+                }
+              }
 
             } else if ((createPaymentDto.capitalAmount !== undefined && createPaymentDto.capitalAmount !== null) || (createPaymentDto.interestAmount !== undefined && createPaymentDto.interestAmount !== null)) {
               actualCapitalPaid = createPaymentDto.capitalAmount || 0;
@@ -172,6 +193,7 @@ export class PaymentsService {
               if (actualCapitalPaid > currentBalance) {
                 actualCapitalPaid = currentBalance;
               }
+              // Modo split: siempre restar solo capital del balance
               loan.currentBalance = currentBalance - actualCapitalPaid;
             } else {
               throw new BadRequestException('Debe proporcionar un monto de pago válido.');
@@ -361,7 +383,13 @@ export class PaymentsService {
       const paymentCapitalPaid = payment.capitalPaid;
       const paymentInterestPaid = payment.interestPaid;
 
-      loan.currentBalance = loan.currentBalance + paymentCapitalPaid;
+      // Cápsula: balance = total a pagar, restaurar monto completo del pago
+      // Indefinido: balance = solo capital, restaurar solo capital
+      if (loan.loanType === 'Cápsula') {
+        loan.currentBalance = loan.currentBalance + payment.amount;
+      } else {
+        loan.currentBalance = loan.currentBalance + paymentCapitalPaid;
+      }
       loan.totalInterestPaid = loan.totalInterestPaid - paymentInterestPaid;
       loan.totalCapitalPaid = loan.totalCapitalPaid - paymentCapitalPaid;
 

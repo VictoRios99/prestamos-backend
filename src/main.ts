@@ -3,6 +3,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
 import { useContainer } from 'class-validator';
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 async function bootstrap() {
   // Desactiva CORS aquí y lo habilitamos explícitamente abajo
@@ -37,7 +39,11 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type','Authorization'],
   });
 
-  // Validación global (tal como la tienes)
+  // Filtro global de excepciones y logging
+  app.useGlobalFilters(new AllExceptionsFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor());
+
+  // Validación global
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: false,
