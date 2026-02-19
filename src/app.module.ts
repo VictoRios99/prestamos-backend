@@ -10,6 +10,13 @@ import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
+import { User } from './users/entities/user.entity';
+import { Customer } from './customers/entities/customer.entity';
+import { Loan } from './loans/entities/loan.entity';
+import { MonthlyPayment } from './loans/entities/monthly-payment.entity';
+import { Payment } from './payments/entities/payment.entity';
+import { CashMovement } from './cash-movements/entities/cash-movement.entity';
+
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { CustomersModule } from './customers/customers.module';
@@ -49,7 +56,7 @@ import { TasksModule } from './tasks/tasks.module';
           config.get<string>('DB_SSL') === 'true'
             ? { rejectUnauthorized: false }
             : false,
-        entities: [join(__dirname, '**', '*.entity{.ts,.js}')],
+        entities: [User, Customer, Loan, MonthlyPayment, Payment, CashMovement],
         synchronize: false,
       }),
     }),
