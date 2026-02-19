@@ -11,7 +11,7 @@ export interface DashboardStats {
   interesRecabado: number; // Total de intereses cobrados
   cargosExtrasRecaudados: number; // Total de cargos extras cobrados
   capitalEnTransito: number; // Capital que aún está prestado
-  intersesMensual: number; // Intereses del mes actual
+  pagosRecibidosMes: number; // Total de pagos recibidos en el mes actual (capital + interés)
 
   // Métricas de morosidad
   prestamosVencidos: number; // Cantidad de préstamos sin pagar
@@ -92,8 +92,6 @@ export class DashboardService {
     let interesRecabado = 0;
     let cargosExtrasRecaudados = 0;
     let capitalEnTransito = 0;
-    let prestamosVencidos = 0;
-    let montoVencido = 0;
     let totalRecaudadoCapsula = 0;
     let totalRecaudadoIndefinido = 0;
 
@@ -107,9 +105,6 @@ export class DashboardService {
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-
-    const prestamosVencidosDetalle: any[] = [];
-    const prestamosPorVencer: any[] = [];
 
     // Semáforo de pagos del mes
     const pagosAlDia: DashboardStats['pagosAlDia'] = [];
@@ -152,45 +147,6 @@ export class DashboardService {
         capitalEnTransito += Math.max(0, Number(loan.amount) - Number(loan.totalCapitalPaid || 0));
       }
 
-      // Verificar si está vencido (>30 días sin pagar o status OVERDUE)
-      const isOverdue = this.isLoanOverdue(loan);
-      if (
-        (isOverdue && loan.status === LoanStatus.ACTIVE) ||
-        loan.status === LoanStatus.OVERDUE
-      ) {
-        prestamosVencidos++;
-        montoVencido += Number(loan.currentBalance || 0);
-
-        prestamosVencidosDetalle.push({
-          id: loan.id,
-          customer: `${loan.customer?.firstName} ${loan.customer?.lastName}`,
-          amount: loan.amount,
-          currentBalance: loan.currentBalance,
-          lastPaymentDate: loan.lastPaymentDate,
-          monthsPaid: loan.monthsPaid,
-          daysSinceLastPayment: this.getDaysSinceLastPayment(
-            loan.lastPaymentDate,
-          ),
-        });
-      }
-
-      // Préstamos que vencen pronto (próximos 7 días)
-      if (loan.status === LoanStatus.ACTIVE && !isOverdue) {
-        const daysSinceLastPayment = this.getDaysSinceLastPayment(
-          loan.lastPaymentDate,
-        );
-        if (daysSinceLastPayment >= 23) {
-          // Cerca de los 30 días
-          prestamosPorVencer.push({
-            id: loan.id,
-            customer: `${loan.customer?.firstName} ${loan.customer?.lastName}`,
-            currentBalance: loan.currentBalance,
-            monthlyPayment: Math.ceil((loan.currentBalance || 0) * 0.05),
-            daysSinceLastPayment,
-          });
-        }
-      }
-
       // Clasificar estado de pago del mes (solo préstamos activos/vencidos)
       if (
         loan.status === LoanStatus.ACTIVE ||
@@ -198,8 +154,19 @@ export class DashboardService {
       ) {
         const customerName = `${loan.customer?.firstName || ''} ${loan.customer?.lastName || ''}`.trim();
         const daysSince = this.getDaysSinceLastPayment(loan.lastPaymentDate);
+        const isOverdue = this.isLoanOverdue(loan);
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        // Obtener MPs del mes actual para clasificación precisa (quincenas, etc.)
+        const thisMonthMPs = (loan.monthlyPayments || []).filter(mp => {
+          const dd = new Date(mp.dueDate);
+          return dd.getMonth() === currentMonth && dd.getFullYear() === currentYear;
+        });
+        const unpaidPastDueThisMonth = thisMonthMPs.filter(mp => !mp.isPaid && new Date(mp.dueDate) < todayStart);
+        const unpaidUpcomingThisMonth = thisMonthMPs.filter(mp => !mp.isPaid && new Date(mp.dueDate) >= todayStart);
 
         if (isOverdue || loan.status === LoanStatus.OVERDUE) {
+          // 30+ días sin pagar o status OVERDUE → moroso
           const diasAtraso = loan.lastPaymentDate
             ? Math.max(0, daysSince - 30)
             : Math.max(0, this.getDaysSinceDate(loan.loanDate) - 30);
@@ -215,7 +182,41 @@ export class DashboardService {
             mesesDeuda,
             diaEsperado,
           });
+        } else if (unpaidPastDueThisMonth.length > 0) {
+          // Tiene MPs vencidos ESTE MES (ej: Q1 del 15 impaga el día 19) → moroso
+          const oldestUnpaid = unpaidPastDueThisMonth.sort(
+            (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+          )[0];
+          const dueDate = new Date(oldestUnpaid.dueDate);
+          const diasAtraso = Math.ceil((now.getTime() - dueDate.getTime()) / 86400000);
+          pagosMorosos.push({
+            id: loan.id,
+            customer: customerName,
+            phone: loan.customer?.phone || '',
+            monto: Number(loan.currentBalance || 0),
+            diasAtraso,
+            loanType: loan.loanType || '',
+            mesesDeuda: 1,
+            diaEsperado: dueDate.getDate(),
+          });
+        } else if (unpaidUpcomingThisMonth.length > 0) {
+          // Tiene MPs futuros este mes (ej: Q2 del 28 sin pagar) → pendiente
+          const nextUnpaid = unpaidUpcomingThisMonth.sort(
+            (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+          )[0];
+          const dueDate = new Date(nextUnpaid.dueDate);
+          const diasRestantes = Math.max(0, Math.ceil((dueDate.getTime() - now.getTime()) / 86400000));
+          pagosPendientes.push({
+            id: loan.id,
+            customer: customerName,
+            phone: loan.customer?.phone || '',
+            monto: Number(loan.currentBalance || 0),
+            diasRestantes,
+            loanType: loan.loanType || '',
+            diaEsperado: dueDate.getDate(),
+          });
         } else if (this.hasPaidThisMonth(loan)) {
+          // Pagó este mes y no tiene MPs pendientes este mes → al día
           const diaPago = loan.lastPaymentDate
             ? new Date(loan.lastPaymentDate).getDate()
             : now.getDate();
@@ -228,17 +229,44 @@ export class DashboardService {
             diaPago,
           });
         } else {
-          const diasRestantes = Math.max(0, 30 - daysSince);
+          // No pagó este mes, sin MPs del mes → heurística por fecha
           const diaEsperado = this.getExpectedPaymentDay(loan, now);
-          pagosPendientes.push({
-            id: loan.id,
-            customer: customerName,
-            phone: loan.customer?.phone || '',
-            monto: Number(loan.currentBalance || 0),
-            diasRestantes,
-            loanType: loan.loanType || '',
-            diaEsperado,
-          });
+          const todayDay = now.getDate();
+          const expectedThisMonth = this.isPaymentExpectedThisMonth(loan, now);
+
+          if (expectedThisMonth && diaEsperado < todayDay) {
+            const diasAtraso = todayDay - diaEsperado;
+            pagosMorosos.push({
+              id: loan.id,
+              customer: customerName,
+              phone: loan.customer?.phone || '',
+              monto: Number(loan.currentBalance || 0),
+              diasAtraso,
+              loanType: loan.loanType || '',
+              mesesDeuda: 1,
+              diaEsperado,
+            });
+          } else {
+            let diasRestantes: number;
+            let diaEsperadoDisplay: number;
+            if (expectedThisMonth) {
+              diasRestantes = Math.max(0, diaEsperado - todayDay);
+              diaEsperadoDisplay = diaEsperado;
+            } else {
+              diasRestantes = Math.max(0, 30 - daysSince);
+              const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+              diaEsperadoDisplay = Math.min(todayDay + diasRestantes, lastDayOfMonth);
+            }
+            pagosPendientes.push({
+              id: loan.id,
+              customer: customerName,
+              phone: loan.customer?.phone || '',
+              monto: Number(loan.currentBalance || 0),
+              diasRestantes,
+              loanType: loan.loanType || '',
+              diaEsperado: diaEsperadoDisplay,
+            });
+          }
         }
       }
 
@@ -287,16 +315,27 @@ export class DashboardService {
       }
     }
 
-    // Calcular interés mensual (del mes actual)
-    const intersesMensual = await this.getMonthlyInterest();
+    // Calcular pagos recibidos del mes actual (capital + interés)
+    const pagosRecibidosMes = await this.getMonthlyPaymentsTotal();
 
-    // Contar préstamos por estado (mutuamente excluyente con prestamosVencidos)
-    const prestamosActivos = loans.filter(
-      (l) => l.status === LoanStatus.ACTIVE && !this.isLoanOverdue(l),
-    ).length;
+    // Derivar métricas de vencidos y próximos a vencer del timeline
+    const prestamosVencidos = pagosMorosos.length;
+    const montoVencido = pagosMorosos.reduce((sum, p) => sum + p.monto, 0);
+
+    // Préstamos activos = los que no están morosos ni completados
+    const prestamosActivos = pagosAlDia.length + pagosPendientes.length;
     const prestamosCompletados = loans.filter(
       (l) => l.status === LoanStatus.PAID,
     ).length;
+
+    // Próximos a vencer = todos los pendientes
+    const prestamosPorVencer = pagosPendientes.map((p) => ({
+      id: p.id,
+      customer: p.customer,
+      currentBalance: p.monto,
+      diasRestantes: p.diasRestantes,
+      diaEsperado: p.diaEsperado,
+    }));
 
     const interesEsperadoTotal =
       interesEsperadoCapsula + interesEsperadoIndefinido + interesEsperadoExtras;
@@ -307,7 +346,7 @@ export class DashboardService {
       interesRecabado,
       cargosExtrasRecaudados,
       capitalEnTransito,
-      intersesMensual,
+      pagosRecibidosMes,
       prestamosVencidos,
       montoVencido,
       totalPrestamos: loans.length,
@@ -328,16 +367,24 @@ export class DashboardService {
       pagosMorosos: pagosMorosos.sort(
         (a, b) => b.diasAtraso - a.diasAtraso,
       ),
-      prestamosVencidosDetalle: prestamosVencidosDetalle.sort(
-        (a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment,
-      ),
+      prestamosVencidosDetalle: pagosMorosos
+        .sort((a, b) => b.diasAtraso - a.diasAtraso)
+        .map((p) => ({
+          id: p.id,
+          customer: p.customer,
+          monto: p.monto,
+          diasAtraso: p.diasAtraso,
+          mesesDeuda: p.mesesDeuda,
+          diaEsperado: p.diaEsperado,
+          loanType: p.loanType,
+        })),
       prestamosPorVencer: prestamosPorVencer.sort(
-        (a, b) => b.daysSinceLastPayment - a.daysSinceLastPayment,
+        (a, b) => a.diasRestantes - b.diasRestantes,
       ),
     };
   }
 
-  private async getMonthlyInterest(): Promise<number> {
+  private async getMonthlyPaymentsTotal(): Promise<number> {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -349,7 +396,8 @@ export class DashboardService {
       .getMany();
 
     return payments.reduce(
-      (total, payment) => total + Number(payment.interestPaid || 0),
+      (total, payment) =>
+        total + Number(payment.interestPaid || 0) + Number(payment.capitalPaid || 0),
       0,
     );
   }
@@ -406,6 +454,36 @@ export class DashboardService {
         },
       };
     });
+  }
+
+  private isPaymentExpectedThisMonth(loan: Loan, now: Date): boolean {
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    // Cápsula: verificar si hay monthlyPayment sin pagar este mes
+    if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
+      return loan.monthlyPayments.some((mp) => {
+        const dueDate = new Date(mp.dueDate);
+        return (
+          dueDate.getMonth() === currentMonth &&
+          dueDate.getFullYear() === currentYear &&
+          !mp.isPaid
+        );
+      });
+    }
+
+    // Indefinido: estimar si lastPayment + 30 cae en este mes
+    if (loan.lastPaymentDate) {
+      const estimated = new Date(loan.lastPaymentDate);
+      estimated.setDate(estimated.getDate() + 30);
+      return (
+        estimated.getMonth() === currentMonth &&
+        estimated.getFullYear() === currentYear
+      );
+    }
+
+    // Sin historial de pago: sí se espera este mes
+    return true;
   }
 
   private getExpectedPaymentDay(loan: Loan, now: Date): number {

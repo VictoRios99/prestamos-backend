@@ -145,7 +145,10 @@ export class PaymentsService {
                 interestRateForPeriod = monthlyInterestRate / 2;
               }
 
-              const interestForPeriod = Math.ceil(loanAmount * interestRateForPeriod);
+              // Cápsula: interés fijo sobre monto original
+              // Indefinido: interés sobre capital vigente (se recalcula al pagar capital)
+              const interestBase = loan.loanType === 'Cápsula' ? loanAmount : currentBalance;
+              const interestForPeriod = Math.ceil(interestBase * interestRateForPeriod);
 
               if (totalPaymentReceived > interestForPeriod) {
                 actualInterestPaid = interestForPeriod;
