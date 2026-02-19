@@ -267,6 +267,121 @@ export class ExcelExportService {
     };
   }
 
+  async exportOverdueLoans(): Promise<Buffer> {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Sistema de Préstamos';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Préstamos Vencidos');
+
+    sheet.columns = [
+      { header: 'ID', key: 'id', width: 8 },
+      { header: 'Cliente', key: 'customer', width: 28 },
+      { header: 'Teléfono', key: 'phone', width: 16 },
+      { header: 'Tipo', key: 'loanType', width: 12 },
+      { header: 'Monto Original', key: 'amount', width: 16 },
+      { header: 'Saldo Actual', key: 'currentBalance', width: 16 },
+      { header: 'Capital Pagado', key: 'totalCapitalPaid', width: 16 },
+      { header: 'Interés Pagado', key: 'totalInterestPaid', width: 16 },
+      { header: 'Fecha Préstamo', key: 'loanDate', width: 14 },
+      { header: 'Último Pago', key: 'lastPaymentDate', width: 14 },
+      { header: 'Días sin Pagar', key: 'daysSincePayment', width: 14 },
+      { header: 'Meses de Deuda', key: 'monthsOverdue', width: 14 },
+    ];
+
+    // Estilo de encabezados
+    const headerRow = sheet.getRow(1);
+    headerRow.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFC0392B' },
+    };
+
+    // Obtener préstamos activos y vencidos (misma lógica que dashboard)
+    const allLoans = await this.loansRepository.find({
+      where: [{ status: 'ACTIVE' as any }, { status: 'OVERDUE' as any }],
+      relations: ['customer'],
+      order: { lastPaymentDate: 'ASC' },
+    });
+
+    const now = new Date();
+
+    // Filtrar: incluir OVERDUE + ACTIVE con más de 30 días sin pagar
+    const loans = allLoans.filter((loan) => {
+      if ((loan.status as string) === 'OVERDUE') return true;
+      const refDate = loan.lastPaymentDate
+        ? new Date(loan.lastPaymentDate)
+        : new Date(loan.loanDate);
+      const diffMs = Math.abs(now.getTime() - refDate.getTime());
+      const daysSince = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      return daysSince > 30;
+    });
+
+    loans.forEach((loan) => {
+      const lastDate = loan.lastPaymentDate
+        ? new Date(loan.lastPaymentDate)
+        : new Date(loan.loanDate);
+      const diffMs = Math.abs(now.getTime() - lastDate.getTime());
+      const daysSince = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      const diasAtraso = Math.max(0, daysSince - 30);
+      const mesesDeuda = Math.max(1, Math.ceil(diasAtraso / 30));
+
+      const row = sheet.addRow({
+        id: loan.id,
+        customer: loan.customer
+          ? `${loan.customer.firstName} ${loan.customer.lastName}`
+          : 'N/A',
+        phone: loan.customer?.phone || '',
+        loanType: loan.loanType || '',
+        amount: Number(loan.amount),
+        currentBalance: Number(loan.currentBalance || 0),
+        totalCapitalPaid: Number(loan.totalCapitalPaid || 0),
+        totalInterestPaid: Number(loan.totalInterestPaid || 0),
+        loanDate: loan.loanDate,
+        lastPaymentDate: loan.lastPaymentDate || 'Sin pagos',
+        daysSincePayment: diasAtraso,
+        monthsOverdue: mesesDeuda,
+      });
+
+      ['amount', 'currentBalance', 'totalCapitalPaid', 'totalInterestPaid'].forEach((col) => {
+        row.getCell(col).numFmt = '"$"#,##0';
+      });
+
+      if (loan.loanDate) row.getCell('loanDate').numFmt = 'dd/mm/yyyy';
+      if (loan.lastPaymentDate) row.getCell('lastPaymentDate').numFmt = 'dd/mm/yyyy';
+    });
+
+    // Fila de totales
+    if (loans.length > 0) {
+      const lastDataRow = loans.length + 1;
+      const totalRow = sheet.addRow({
+        id: '',
+        customer: `TOTAL: ${loans.length} préstamos vencidos`,
+        phone: '',
+        loanType: '',
+        amount: { formula: `SUM(E2:E${lastDataRow})` },
+        currentBalance: { formula: `SUM(F2:F${lastDataRow})` },
+        totalCapitalPaid: { formula: `SUM(G2:G${lastDataRow})` },
+        totalInterestPaid: { formula: `SUM(H2:H${lastDataRow})` },
+        loanDate: '',
+        lastPaymentDate: '',
+        daysSincePayment: '',
+        monthsOverdue: '',
+      });
+
+      totalRow.font = { bold: true };
+      totalRow.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFF2F2F2' },
+      };
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as unknown as Buffer;
+  }
+
   private getPaymentTypeText(paymentType: string): string {
     const types = {
       INTEREST: 'Solo Interés',

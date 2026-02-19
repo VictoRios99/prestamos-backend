@@ -82,6 +82,25 @@ export class ReportsController {
     }
   }
 
+  @Get('overdue/export')
+  async exportOverdueLoans(@Res() res: Response) {
+    try {
+      const buffer = await this.excelExportService.exportOverdueLoans();
+
+      res.set({
+        'Content-Type':
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': 'attachment; filename=prestamos-vencidos.xlsx',
+        'Content-Length': buffer.length,
+      });
+
+      res.send(buffer);
+    } catch (error) {
+      console.error('Error exporting overdue loans:', error);
+      res.status(500).json({ error: 'Error al exportar préstamos vencidos' });
+    }
+  }
+
   @Get('dashboard')
   async getDashboardReport() {
     try {
