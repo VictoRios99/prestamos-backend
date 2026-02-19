@@ -57,7 +57,9 @@ export class PaymentsService {
             );
           }
 
-          const currentBalance = loan.currentBalance;
+          // Forzar conversión numérica (DB devuelve strings para columnas numeric)
+          const currentBalance = Number(loan.currentBalance);
+          const loanAmount = Number(loan.amount);
 
           if (currentBalance <= 0) {
             throw new BadRequestException(
@@ -85,7 +87,7 @@ export class PaymentsService {
 
             for (let i = 0; i < overduePeriodsPaid; i++) {
               const mp = overdueMonthlyPayments[i];
-              const expectedAmount = mp.expectedAmount;
+              const expectedAmount = Number(mp.expectedAmount);
               totalAmountPaid = totalAmountPaid + expectedAmount;
 
               // Calcular interés según modalidad (quincenas o meses)
@@ -93,11 +95,10 @@ export class PaymentsService {
               let interestRateForPeriod = monthlyInterestRate;
 
               if (loan.modality === 'quincenas') {
-                // Para quincenas, dividir la tasa mensual entre 2
                 interestRateForPeriod = monthlyInterestRate / 2;
               }
 
-              const interestForPeriod = Math.ceil(loan.amount * interestRateForPeriod);
+              const interestForPeriod = Math.ceil(loanAmount * interestRateForPeriod);
 
               let interestPaidForPeriod: number;
               let capitalPaidForPeriod: number;
@@ -141,11 +142,10 @@ export class PaymentsService {
               let interestRateForPeriod = monthlyInterestRate;
 
               if (loan.loanType === 'Cápsula' && loan.modality === 'quincenas') {
-                // Para quincenas, dividir la tasa mensual entre 2
                 interestRateForPeriod = monthlyInterestRate / 2;
               }
 
-              const interestForPeriod = Math.ceil(loan.amount * interestRateForPeriod);
+              const interestForPeriod = Math.ceil(loanAmount * interestRateForPeriod);
 
               if (totalPaymentReceived > interestForPeriod) {
                 actualInterestPaid = interestForPeriod;
@@ -200,8 +200,8 @@ export class PaymentsService {
             }
           }
 
-          loan.totalInterestPaid = loan.totalInterestPaid + actualInterestPaid;
-          loan.totalCapitalPaid = loan.totalCapitalPaid + actualCapitalPaid;
+          loan.totalInterestPaid = Number(loan.totalInterestPaid) + actualInterestPaid;
+          loan.totalCapitalPaid = Number(loan.totalCapitalPaid) + actualCapitalPaid;
           loan.lastPaymentDate = new Date(paymentDate);
 
           if (loan.currentBalance <= 0) {
@@ -256,6 +256,7 @@ export class PaymentsService {
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }
+      console.error('Payment processing error:', error);
       throw new InternalServerErrorException('Error al procesar el pago. Por favor, intente de nuevo más tarde.');
     }
   }

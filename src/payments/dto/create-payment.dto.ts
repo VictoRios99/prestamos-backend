@@ -38,7 +38,7 @@ export class CreatePaymentDto {
 
   @IsOptional()
   @IsNumber()
-  @Min(1)
+  @Min(0)
   overduePeriodsPaid?: number;
 
   @IsOptional()
