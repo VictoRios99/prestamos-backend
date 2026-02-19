@@ -24,8 +24,7 @@ export class AuthService {
         return result;
       }
       return null;
-    } catch (error) {
-      console.error('Error en validateUser:', error);
+    } catch {
       return null;
     }
   }
@@ -49,8 +48,7 @@ export class AuthService {
           isActive: user.isActive,
         },
       };
-    } catch (error) {
-      console.error('Error en el proceso de login:', error);
+    } catch {
       throw new UnauthorizedException('Ocurrió un error durante el inicio de sesión.');
     }
   }

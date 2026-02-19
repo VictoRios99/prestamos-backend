@@ -253,7 +253,6 @@ export class PaymentsService {
         },
       );
     } catch (error) {
-      console.log(error);
       if (error instanceof NotFoundException || error instanceof BadRequestException) {
         throw error;
       }

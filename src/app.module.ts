@@ -4,6 +4,8 @@ import { join } from 'path';
 
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -28,6 +30,10 @@ import { TasksModule } from './tasks/tasks.module';
     }),
 
     ConfigModule.forRoot({ isGlobal: true }),
+
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: 60000, limit: 30 }],
+    }),
 
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
@@ -60,6 +66,9 @@ import { TasksModule } from './tasks/tasks.module';
     TasksModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

@@ -348,8 +348,7 @@ export class LoansService {
       });
       return completedLoans;
     } catch (error) {
-      console.error('Error in getCompletedLoans:', error);
-      throw error; // Re-throw the error so it propagates to the controller
+      throw error;
     }
   }
 

@@ -5,10 +5,13 @@ import { ConfigService } from '@nestjs/config';
 import { useContainer } from 'class-validator';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import helmet from 'helmet';
 
 async function bootstrap() {
-  // Desactiva CORS aquí y lo habilitamos explícitamente abajo
   const app = await NestFactory.create(AppModule, { cors: false });
+
+  // Helmet — headers de seguridad (CSP, X-Frame-Options, etc.)
+  app.use(helmet());
 
   // class-validator con el contenedor de Nest
   useContainer(app.select(AppModule), { fallbackOnErrors: true });
@@ -16,8 +19,7 @@ async function bootstrap() {
   const allowedOrigins = [
     'http://localhost:4200',
     'http://127.0.0.1:4200',
-    'https://panel-prestamos.itcooper.mx'
-    // 'https://prestamos-frontend.vercel.app',      // (opcional) si tienes otro proyecto/alias
+    'https://panel-prestamos.itcooper.mx',
   ];
 
   const frontendOriginsFromEnv = process.env.FRONTEND_ORIGIN;
@@ -28,7 +30,6 @@ async function bootstrap() {
 
   app.enableCors({
     origin: (origin, callback) => {
-      // permitir llamadas sin origin (p.ej. curl/health) y orígenes listados
       if (!origin || allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
@@ -43,11 +44,11 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());
 
-  // Validación global
+  // Validación global — whitelist filtra campos no declarados en DTOs
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: false,
-      forbidNonWhitelisted: false,
+      whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );
@@ -55,12 +56,12 @@ async function bootstrap() {
   // Prefijo global
   app.setGlobalPrefix('api');
 
-  // Puerto: Render inyecta process.env.PORT
+  // Puerto
   const configService = app.get(ConfigService);
   const portFromEnv = process.env.PORT ? Number(process.env.PORT) : undefined;
   const port = portFromEnv ?? configService.get<number>('PORT') ?? 3000;
 
-  await app.listen(port, '0.0.0.0');
-  console.log(`Application is running on: http://localhost:${port}`);
+  await app.listen(port, '127.0.0.1');
+  console.log(`Application is running on: http://127.0.0.1:${port}`);
 }
 bootstrap();

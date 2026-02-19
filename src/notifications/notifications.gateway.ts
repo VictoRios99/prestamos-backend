@@ -12,7 +12,11 @@ import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
 
 @WebSocketGateway({
   cors: {
-    origin: 'http://localhost:4200',
+    origin: [
+      'http://localhost:4200',
+      'http://127.0.0.1:4200',
+      'https://panel-prestamos.itcooper.mx',
+    ],
     credentials: true,
   },
 })
@@ -25,12 +29,10 @@ export class NotificationsGateway
   private connectedClients = new Map<string, Socket>();
 
   handleConnection(client: Socket) {
-    console.log(`Client connected: ${client.id}`);
     this.connectedClients.set(client.id, client);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`Client disconnected: ${client.id}`);
     this.connectedClients.delete(client.id);
   }
 
