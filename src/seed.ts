@@ -54,9 +54,30 @@ async function bootstrap() {
       console.log('✅ Usuario operador ya existe');
     }
 
+    // Auditor
+    let auditorUser = await userRepository.findOne({
+      where: { username: 'auditor' },
+    });
+    if (!auditorUser) {
+      const auditorPassword = await bcrypt.hash('auditor123', 10);
+      auditorUser = userRepository.create({
+        username: 'auditor',
+        email: 'auditor@sistema.com',
+        password: auditorPassword,
+        fullName: 'Auditor Sistema',
+        role: UserRole.AUDITOR,
+        isActive: true,
+      } as Partial<User>);
+      await userRepository.save(auditorUser);
+      console.log('✅ Usuario auditor creado');
+    } else {
+      console.log('✅ Usuario auditor ya existe');
+    }
+
     console.log('🎉 Seed (usuarios) completado exitosamente');
     console.log('👤 Admin - username: admin, password: admin123');
     console.log('👤 Operador - username: operador, password: operator123');
+    console.log('👤 Auditor - username: auditor, password: auditor123');
   } catch (error: any) {
     console.error('❌ Error en el seed:', error.message || error);
   } finally {

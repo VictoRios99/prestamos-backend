@@ -1,8 +1,12 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(UserRole.SUPER_ADMIN, UserRole.AUDITOR)
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
@@ -10,6 +14,22 @@ export class DashboardController {
   @Get('stats')
   async getDashboardStats() {
     return this.dashboardService.getDashboardStats();
+  }
+
+  @Get('capital-distribution')
+  async getCapitalDistribution() {
+    return this.dashboardService.getCapitalDistribution();
+  }
+
+  @Get('payment-log')
+  async getPaymentActivityLog(
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const now = new Date();
+    const m = month ? parseInt(month, 10) : now.getMonth() + 1;
+    const y = year ? parseInt(year, 10) : now.getFullYear();
+    return this.dashboardService.getPaymentActivityLog(m, y);
   }
 
   @Get('loans-status')

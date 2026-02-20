@@ -11,6 +11,9 @@ import {
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard)
@@ -19,6 +22,8 @@ export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
   create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
     return this.paymentsService.create(
       createPaymentDto,
@@ -47,6 +52,8 @@ export class PaymentsController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
   remove(@Param('id') id: string) {
     return this.paymentsService.remove(+id);
   }

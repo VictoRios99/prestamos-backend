@@ -11,6 +11,7 @@ import { Exclude } from 'class-transformer';
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   OPERATOR = 'OPERATOR',
+  AUDITOR = 'AUDITOR',
 }
 
 @Entity('users')
@@ -37,6 +38,9 @@ export class User {
     default: UserRole.OPERATOR,
   })
   role: UserRole;
+
+  @Column({ name: 'profile_photo', nullable: true })
+  profilePhoto: string;
 
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
