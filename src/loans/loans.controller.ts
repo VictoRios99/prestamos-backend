@@ -5,18 +5,35 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard)
 @Controller('loans')
 export class LoansController {
-  constructor(private readonly loansService: LoansService) {}
+  constructor(
+    private readonly loansService: LoansService,
+    private readonly activityService: ActivityService,
+  ) {}
 
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
-  create(@Body() createLoanDto: CreateLoanDto, @Req() req: Request) {
-    return this.loansService.create(createLoanDto, (req.user as any).userId);
+  async create(@Body() createLoanDto: CreateLoanDto, @Req() req: Request) {
+    const user = req.user as any;
+    const loan = await this.loansService.create(createLoanDto, user.userId);
+    this.activityService.log({
+      action: ActivityAction.CREATE_LOAN,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'loan',
+      entityId: loan.id,
+      details: { amount: createLoanDto.amount, loanType: createLoanDto.loanType },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return loan;
   }
 
   @Get()
@@ -47,7 +64,18 @@ export class LoansController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.loansService.remove(+id);
+  async remove(@Param('id') id: string, @Req() req: Request) {
+    const user = req.user as any;
+    const result = await this.loansService.remove(+id);
+    this.activityService.log({
+      action: ActivityAction.DELETE_LOAN,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'loan',
+      entityId: +id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return result;
   }
 }

@@ -16,6 +16,7 @@ import { Loan } from './loans/entities/loan.entity';
 import { MonthlyPayment } from './loans/entities/monthly-payment.entity';
 import { Payment } from './payments/entities/payment.entity';
 import { CashMovement } from './cash-movements/entities/cash-movement.entity';
+import { ActivityLog } from './activity/entities/activity-log.entity';
 
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
@@ -27,6 +28,7 @@ import { ReportsModule } from './reports/reports.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TasksModule } from './tasks/tasks.module';
+import { ActivityModule } from './activity/activity.module';
 
 @Module({
   imports: [
@@ -62,7 +64,7 @@ import { TasksModule } from './tasks/tasks.module';
           config.get<string>('DB_SSL') === 'true'
             ? { rejectUnauthorized: false }
             : false,
-        entities: [User, Customer, Loan, MonthlyPayment, Payment, CashMovement],
+        entities: [User, Customer, Loan, MonthlyPayment, Payment, CashMovement, ActivityLog],
         synchronize: false,
       }),
     }),
@@ -77,6 +79,7 @@ import { TasksModule } from './tasks/tasks.module';
     DashboardModule,
     NotificationsModule,
     TasksModule,
+    ActivityModule,
   ],
   controllers: [AppController],
   providers: [

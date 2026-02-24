@@ -20,18 +20,35 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly activityService: ActivityService,
+  ) {}
 
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
-  create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: Request) {
-    return this.customersService.create(createCustomerDto, (req.user as any).userId);
+  async create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: Request) {
+    const user = req.user as any;
+    const customer = await this.customersService.create(createCustomerDto, user.userId);
+    this.activityService.log({
+      action: ActivityAction.CREATE_CUSTOMER,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'customer',
+      entityId: customer.id,
+      details: { name: `${createCustomerDto.firstName} ${createCustomerDto.lastName}` },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return customer;
   }
 
   @Get()
@@ -47,18 +64,41 @@ export class CustomersController {
   @Put(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
-  update(
+  async update(
     @Param('id') id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
+    @Req() req: Request,
   ) {
-    return this.customersService.update(+id, updateCustomerDto);
+    const user = req.user as any;
+    const result = await this.customersService.update(+id, updateCustomerDto);
+    this.activityService.log({
+      action: ActivityAction.UPDATE_CUSTOMER,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'customer',
+      entityId: +id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return result;
   }
 
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.customersService.remove(+id);
+  async remove(@Param('id') id: string, @Req() req: Request) {
+    const user = req.user as any;
+    const result = await this.customersService.remove(+id);
+    this.activityService.log({
+      action: ActivityAction.DELETE_CUSTOMER,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'customer',
+      entityId: +id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return result;
   }
 
   @Post('bulk-upload')
@@ -67,12 +107,12 @@ export class CustomersController {
   @UseInterceptors(FileInterceptor('file'))
   async bulkUpload(@UploadedFile() file: any) {
     if (!file) {
-      throw new BadRequestException('No se ha proporcionado ningún archivo');
+      throw new BadRequestException('No se ha proporcionado ningun archivo');
     }
 
     if (!file.originalname.match(/\.(xlsx|xls)$/)) {
       throw new BadRequestException(
-        'Formato de archivo inválido. Solo se permiten archivos Excel (.xlsx, .xls)',
+        'Formato de archivo invalido. Solo se permiten archivos Excel (.xlsx, .xls)',
       );
     }
 

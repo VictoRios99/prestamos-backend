@@ -1,5 +1,5 @@
-import { Controller, Get, Res, Query, UseGuards } from '@nestjs/common';
-import { Response } from 'express';
+import { Controller, Get, Res, Query, UseGuards, Req } from '@nestjs/common';
+import { Response, Request } from 'express';
 import { LoansService } from '../loans/loans.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ExcelExportService } from './excel-export.service';
@@ -7,6 +7,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/entities/activity-log.entity';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN)
@@ -16,15 +18,24 @@ export class ReportsController {
     private readonly loansService: LoansService,
     private readonly paymentsService: PaymentsService,
     private readonly excelExportService: ExcelExportService,
+    private readonly activityService: ActivityService,
   ) {}
 
   @Get('loans/export')
-  async exportLoans(@Res() res: Response) {
+  async exportLoans(@Res() res: Response, @Req() req: Request) {
     try {
       const loans = await this.loansService.findAll();
-
-      // Crear buffer del Excel
       const buffer = await this.generateLoansExcel(loans);
+
+      const user = req.user as any;
+      this.activityService.log({
+        action: ActivityAction.EXPORT_REPORT,
+        userId: user.userId,
+        userName: user.fullName || user.username,
+        details: { report: 'prestamos' },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
 
       res.set({
         'Content-Type':
@@ -36,13 +47,14 @@ export class ReportsController {
       res.send(buffer);
     } catch (error) {
       console.error('Error exporting loans:', error);
-      res.status(500).json({ error: 'Error al exportar préstamos' });
+      res.status(500).json({ error: 'Error al exportar prestamos' });
     }
   }
 
   @Get('payments/export')
   async exportPayments(
     @Res() res: Response,
+    @Req() req: Request,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('reportType') reportType?: 'past' | 'all',
@@ -56,17 +68,24 @@ export class ReportsController {
         : undefined;
 
       if (reportType === 'past' || !reportType) {
-        // 'past' is default
         if (!end) {
-          end = new Date(new Date().setUTCHours(23, 59, 59, 999)); // End of today
+          end = new Date(new Date().setUTCHours(23, 59, 59, 999));
         }
       } else if (reportType === 'all') {
-        // If 'all' is requested, and no specific endDate is provided, ensure it's effectively infinite
-        // Or, simply pass undefined to excelExportService.exportPayments to get all
-        end = undefined; // This will make the service fetch all if start is also undefined
+        end = undefined;
       }
 
       const buffer = await this.excelExportService.exportPayments(start, end);
+
+      const user = req.user as any;
+      this.activityService.log({
+        action: ActivityAction.EXPORT_REPORT,
+        userId: user.userId,
+        userName: user.fullName || user.username,
+        details: { report: 'pagos', startDate, endDate, reportType },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
 
       res.set({
         'Content-Type':
@@ -83,9 +102,19 @@ export class ReportsController {
   }
 
   @Get('overdue/export')
-  async exportOverdueLoans(@Res() res: Response) {
+  async exportOverdueLoans(@Res() res: Response, @Req() req: Request) {
     try {
       const buffer = await this.excelExportService.exportOverdueLoans();
+
+      const user = req.user as any;
+      this.activityService.log({
+        action: ActivityAction.EXPORT_REPORT,
+        userId: user.userId,
+        userName: user.fullName || user.username,
+        details: { report: 'prestamos-vencidos' },
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'],
+      });
 
       res.set({
         'Content-Type':
@@ -97,7 +126,7 @@ export class ReportsController {
       res.send(buffer);
     } catch (error) {
       console.error('Error exporting overdue loans:', error);
-      res.status(500).json({ error: 'Error al exportar préstamos vencidos' });
+      res.status(500).json({ error: 'Error al exportar prestamos vencidos' });
     }
   }
 
@@ -107,7 +136,6 @@ export class ReportsController {
       const loans = await this.loansService.findAll();
       const payments = await this.paymentsService.findAll();
 
-      // Calcular métricas básicas para el reporte
       const totalLoaned = loans.reduce(
         (sum, loan) => sum + Number(loan.amount),
         0,
@@ -134,28 +162,24 @@ export class ReportsController {
     const ExcelJS = require('exceljs');
     const workbook = new ExcelJS.Workbook();
 
-    // Configurar metadatos
-    workbook.creator = 'Sistema de Préstamos';
+    workbook.creator = 'Sistema de Prestamos';
     workbook.created = new Date();
 
-    // Crear hoja principal
-    const worksheet = workbook.addWorksheet('Préstamos');
+    const worksheet = workbook.addWorksheet('Prestamos');
 
-    // Configurar columnas
     worksheet.columns = [
       { header: 'ID', key: 'id', width: 10 },
       { header: 'Cliente', key: 'customer', width: 25 },
-      { header: 'Fecha Préstamo', key: 'loanDate', width: 15 },
+      { header: 'Fecha Prestamo', key: 'loanDate', width: 15 },
       { header: 'Monto Original', key: 'amount', width: 15 },
       { header: 'Saldo Actual', key: 'currentBalance', width: 15 },
-      { header: 'Total Interés Pagado', key: 'totalInterestPaid', width: 18 },
+      { header: 'Total Interes Pagado', key: 'totalInterestPaid', width: 18 },
       { header: 'Total Capital Pagado', key: 'totalCapitalPaid', width: 18 },
       { header: 'Quincenas Pagadas', key: 'monthsPaid', width: 15 },
       { header: 'Estado', key: 'status', width: 12 },
-      { header: 'Último Pago', key: 'lastPaymentDate', width: 15 },
+      { header: 'Ultimo Pago', key: 'lastPaymentDate', width: 15 },
     ];
 
-    // Estilo de encabezados
     worksheet.getRow(1).font = { bold: true };
     worksheet.getRow(1).fill = {
       type: 'pattern',
@@ -164,7 +188,6 @@ export class ReportsController {
     };
     worksheet.getRow(1).font = { color: { argb: 'FFFFFFFF' }, bold: true };
 
-    // Agregar datos
     loans.forEach((loan) => {
       const row = worksheet.addRow({
         id: loan.id,
@@ -181,7 +204,6 @@ export class ReportsController {
         lastPaymentDate: loan.lastPaymentDate || 'Sin pagos',
       });
 
-      // Formato de números como moneda
       [
         'amount',
         'currentBalance',
@@ -192,7 +214,6 @@ export class ReportsController {
         cell.numFmt = '"$"#,##0.00';
       });
 
-      // Formato de fecha
       if (loan.loanDate) {
         row.getCell('loanDate').numFmt = 'dd/mm/yyyy';
       }
@@ -201,7 +222,6 @@ export class ReportsController {
       }
     });
 
-    // Generar buffer
     const buffer = await workbook.xlsx.writeBuffer();
     return buffer as Buffer;
   }

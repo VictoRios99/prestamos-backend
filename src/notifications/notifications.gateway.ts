@@ -1,14 +1,25 @@
-// src/notifications/notifications.gateway.ts
 import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  MessageBody,
+  ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
-import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { JwtService } from '@nestjs/jwt';
+
+interface ConnectedUser {
+  socketId: string;
+  userId: number;
+  username: string;
+  fullName: string;
+  role: string;
+  currentPage: string;
+  connectedSince: Date;
+  lastActivity: Date;
+}
 
 @WebSocketGateway({
   cors: {
@@ -26,26 +37,100 @@ export class NotificationsGateway
   @WebSocketServer()
   server: Server;
 
-  private connectedClients = new Map<string, Socket>();
+  private connectedUsers = new Map<string, ConnectedUser>();
+
+  constructor(private jwtService: JwtService) {}
 
   handleConnection(client: Socket) {
-    this.connectedClients.set(client.id, client);
+    try {
+      const token =
+        client.handshake.auth?.token ||
+        client.handshake.headers?.authorization?.split(' ')[1];
+      if (!token) {
+        client.disconnect();
+        return;
+      }
+      const payload = this.jwtService.verify(token);
+      const user: ConnectedUser = {
+        socketId: client.id,
+        userId: payload.sub,
+        username: payload.username,
+        fullName: payload.fullName || payload.username,
+        role: payload.role,
+        currentPage: '/',
+        connectedSince: new Date(),
+        lastActivity: new Date(),
+      };
+      this.connectedUsers.set(client.id, user);
+      this.emitPresenceUpdate();
+    } catch {
+      client.disconnect();
+    }
   }
 
   handleDisconnect(client: Socket) {
-    this.connectedClients.delete(client.id);
+    this.connectedUsers.delete(client.id);
+    this.emitPresenceUpdate();
   }
 
-  // Emitir notificación de nuevo préstamo
+  @SubscribeMessage('navigated')
+  handleNavigated(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { page: string },
+  ) {
+    const user = this.connectedUsers.get(client.id);
+    if (user) {
+      user.currentPage = data.page;
+      user.lastActivity = new Date();
+      this.emitPresenceUpdate();
+    }
+  }
+
+  getOnlineUsers() {
+    const seen = new Map<number, ConnectedUser>();
+    for (const u of this.connectedUsers.values()) {
+      const existing = seen.get(u.userId);
+      if (!existing || u.lastActivity > existing.lastActivity) {
+        seen.set(u.userId, u);
+      }
+    }
+    return Array.from(seen.values()).map((u) => ({
+      userId: u.userId,
+      username: u.username,
+      fullName: u.fullName,
+      role: u.role,
+      currentPage: u.currentPage,
+      connectedSince: u.connectedSince,
+      lastActivity: u.lastActivity,
+    }));
+  }
+
+  emitPresenceUpdate() {
+    this.server.emit('userPresence', this.getOnlineUsers());
+  }
+
+  emitActivity(log: any) {
+    this.server.emit('activityLogged', {
+      id: log.id,
+      action: log.action,
+      userName: log.userName,
+      entityType: log.entityType,
+      entityId: log.entityId,
+      details: log.details,
+      createdAt: log.createdAt,
+    });
+  }
+
+  // Emitir notificacion de nuevo prestamo
   emitNewLoan(loan: any) {
     this.server.emit('newLoan', {
-      message: 'Nuevo préstamo creado',
+      message: 'Nuevo prestamo creado',
       loan,
       timestamp: new Date(),
     });
   }
 
-  // Emitir notificación de nuevo pago
+  // Emitir notificacion de nuevo pago
   emitNewPayment(payment: any) {
     this.server.emit('newPayment', {
       message: 'Nuevo pago registrado',
@@ -54,7 +139,7 @@ export class NotificationsGateway
     });
   }
 
-  // Emitir actualización de dashboard
+  // Emitir actualizacion de dashboard
   emitDashboardUpdate(data: any) {
     this.server.emit('dashboardUpdate', data);
   }

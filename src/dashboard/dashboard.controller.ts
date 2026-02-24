@@ -1,18 +1,32 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Req } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/entities/activity-log.entity';
+import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN, UserRole.AUDITOR)
 @Controller('dashboard')
 export class DashboardController {
-  constructor(private readonly dashboardService: DashboardService) {}
+  constructor(
+    private readonly dashboardService: DashboardService,
+    private readonly activityService: ActivityService,
+  ) {}
 
   @Get('stats')
-  async getDashboardStats() {
+  async getDashboardStats(@Req() req: Request) {
+    const user = req.user as any;
+    this.activityService.log({
+      action: ActivityAction.VIEW_DASHBOARD,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
     return this.dashboardService.getDashboardStats();
   }
 

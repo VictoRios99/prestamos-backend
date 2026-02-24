@@ -14,21 +14,35 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
 
 @UseGuards(JwtAuthGuard)
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly activityService: ActivityService,
+  ) {}
 
   @Post()
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
-  create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
-    return this.paymentsService.create(
-      createPaymentDto,
-      (req.user as any).userId,
-    );
+  async create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
+    const user = req.user as any;
+    const payment = await this.paymentsService.create(createPaymentDto, user.userId);
+    this.activityService.log({
+      action: ActivityAction.CREATE_PAYMENT,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'payment',
+      entityId: payment.id,
+      details: { amount: createPaymentDto.amount, loanId: createPaymentDto.loanId },
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return payment;
   }
 
   @Get()
@@ -54,7 +68,18 @@ export class PaymentsController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
-  remove(@Param('id') id: string) {
-    return this.paymentsService.remove(+id);
+  async remove(@Param('id') id: string, @Req() req: Request) {
+    const user = req.user as any;
+    const result = await this.paymentsService.remove(+id);
+    this.activityService.log({
+      action: ActivityAction.DELETE_PAYMENT,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'payment',
+      entityId: +id,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+    return result;
   }
 }

@@ -21,6 +21,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from './entities/user.entity';
 import { multerPhotoConfig } from './multer-photo.config';
+import { ActivityService } from '../activity/activity.service';
+import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
@@ -29,7 +31,10 @@ import { join } from 'path';
 @UseInterceptors(ClassSerializerInterceptor)
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly activityService: ActivityService,
+  ) {}
 
   // ── Rutas /me primero (antes de /:id) ──
 
@@ -42,7 +47,8 @@ export class UsersController {
   @Patch('me/profile-photo')
   @UseInterceptors(FileInterceptor('photo', multerPhotoConfig))
   async uploadProfilePhoto(@Req() req: Request, @UploadedFile() file: any) {
-    const userId = (req.user as any).userId;
+    const user = req.user as any;
+    const userId = user.userId;
 
     // Eliminar foto anterior si existe
     const currentUser = await this.usersService.findById(userId);
@@ -54,7 +60,19 @@ export class UsersController {
     }
 
     const photoPath = `uploads/profiles/${file.filename}`;
-    return this.usersService.updateProfilePhoto(userId, photoPath);
+    const result = await this.usersService.updateProfilePhoto(userId, photoPath);
+
+    this.activityService.log({
+      action: ActivityAction.UPLOAD_PHOTO,
+      userId,
+      userName: user.fullName || user.username,
+      entityType: 'user',
+      entityId: userId,
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    });
+
+    return result;
   }
 
   // ── Rutas admin-only ──
