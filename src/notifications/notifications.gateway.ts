@@ -19,6 +19,7 @@ interface ConnectedUser {
   currentPage: string;
   connectedSince: Date;
   lastActivity: Date;
+  browserLocation?: { lat: number; lng: number; accuracy: number };
 }
 
 @WebSocketGateway({
@@ -51,6 +52,7 @@ export class NotificationsGateway
         return;
       }
       const payload = this.jwtService.verify(token);
+      const bl = client.handshake.auth?.browserLocation;
       const user: ConnectedUser = {
         socketId: client.id,
         userId: payload.sub,
@@ -60,6 +62,7 @@ export class NotificationsGateway
         currentPage: '/',
         connectedSince: new Date(),
         lastActivity: new Date(),
+        browserLocation: bl && typeof bl.lat === 'number' ? bl : undefined,
       };
       this.connectedUsers.set(client.id, user);
       this.emitPresenceUpdate();
@@ -102,7 +105,17 @@ export class NotificationsGateway
       currentPage: u.currentPage,
       connectedSince: u.connectedSince,
       lastActivity: u.lastActivity,
+      hasGps: !!u.browserLocation,
     }));
+  }
+
+  getBrowserLocation(userId: number): { lat: number; lng: number } | undefined {
+    for (const u of this.connectedUsers.values()) {
+      if (u.userId === userId && u.browserLocation) {
+        return { lat: u.browserLocation.lat, lng: u.browserLocation.lng };
+      }
+    }
+    return undefined;
   }
 
   emitPresenceUpdate() {

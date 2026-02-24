@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActivityLog, ActivityAction } from './entities/activity-log.entity';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
+import { geolocateIp } from '../common/utils/geolocate-ip';
+import { reverseGeocode } from '../common/utils/reverse-geocode';
 
 export interface LogParams {
   action: ActivityAction;
@@ -36,13 +38,33 @@ export class ActivityService {
 
   async log(params: LogParams): Promise<void> {
     try {
+      let location = '';
+      let locationSource: 'gps' | 'ip' | '' = '';
+
+      // 1) Intentar GPS del navegador (reverse geocode)
+      const gps = this.gateway.getBrowserLocation(params.userId);
+      if (gps) {
+        location = await reverseGeocode(gps.lat, gps.lng);
+        if (location) locationSource = 'gps';
+      }
+
+      // 2) Fallback a IP geolocation
+      if (!location && params.ipAddress) {
+        location = await geolocateIp(params.ipAddress);
+        if (location) locationSource = 'ip';
+      }
+
       const entry = new ActivityLog();
       entry.action = params.action;
       entry.userId = params.userId;
       entry.userName = params.userName;
       entry.entityType = params.entityType ?? null;
       entry.entityId = params.entityId ?? null;
-      entry.details = params.details ?? {};
+      entry.details = {
+        ...(params.details ?? {}),
+        ...(location ? { location } : {}),
+        ...(locationSource ? { locationSource } : {}),
+      };
       entry.ipAddress = params.ipAddress ?? null;
       entry.userAgent = params.userAgent ?? null;
       const saved = await this.activityRepo.save(entry);
