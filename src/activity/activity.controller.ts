@@ -36,6 +36,7 @@ export class ActivityController {
     return this.activityService.findAll(filters);
   }
 
+  @Roles(UserRole.SUPER_ADMIN)
   @Delete('bulk')
   async deleteBulk(
     @Query('action') action?: ActivityAction,
@@ -45,6 +46,7 @@ export class ActivityController {
     return { deleted };
   }
 
+  @Roles(UserRole.SUPER_ADMIN)
   @Delete(':id')
   async deleteOne(@Param('id') id: string) {
     await this.activityService.deleteOne(+id);
