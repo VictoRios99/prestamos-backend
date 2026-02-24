@@ -46,9 +46,12 @@ let DashboardService = class DashboardService {
         let capitalEnTransito = 0;
         let totalRecaudadoCapsula = 0;
         let totalRecaudadoIndefinido = 0;
+        let interesPendienteCapsula = 0;
+        let interesPendienteIndefinido = 0;
+        const interesEsperadoExtras = 0;
         let interesEsperadoCapsula = 0;
         let interesEsperadoIndefinido = 0;
-        const interesEsperadoExtras = 0;
+        let capitalPendienteCapsula = 0;
         let capitalEsperadoCapsula = 0;
         let capitalRecibidoCapsula = 0;
         const now = new Date();
@@ -183,31 +186,49 @@ let DashboardService = class DashboardService {
                     }
                 }
             }
-            if (loan.status === loan_entity_1.LoanStatus.ACTIVE ||
-                loan.status === loan_entity_1.LoanStatus.OVERDUE) {
-                const rate = Number(loan.monthlyInterestRate || 0) / 100;
-                if (loan.loanType === 'Cápsula' && loan.monthlyPayments) {
-                    for (const mp of loan.monthlyPayments) {
-                        const dueDate = this.toLocalDate(mp.dueDate);
-                        if (dueDate.getMonth() === currentMonth &&
-                            dueDate.getFullYear() === currentYear) {
-                            const effectiveRate = loan.modality === 'quincenas' ? rate / 2 : rate;
-                            const interesEsperado = Math.round(Number(loan.amount) * effectiveRate * 100) / 100;
-                            interesEsperadoCapsula += interesEsperado;
-                            const capitalEsperado = Math.max(0, Number(mp.expectedAmount) - interesEsperado);
-                            capitalEsperadoCapsula += capitalEsperado;
-                            if (mp.isPaid) {
-                                capitalRecibidoCapsula += Number(mp.capitalPaid || 0);
-                            }
-                        }
+            if (loan.loanType === 'Cápsula' && loan.monthlyPayments && loan.status !== loan_entity_1.LoanStatus.CANCELLED) {
+                const febMps = loan.monthlyPayments
+                    .filter(mp => {
+                    const d = this.toLocalDate(mp.dueDate);
+                    return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                })
+                    .sort((a, b) => this.toLocalDate(a.dueDate).getTime() - this.toLocalDate(b.dueDate).getTime());
+                let loanCapitalPendiente = 0;
+                for (const mp of febMps) {
+                    const rate = Number(loan.monthlyInterestRate || 0) / 100;
+                    const effectiveRate = loan.modality === 'quincenas' ? rate / 2 : rate;
+                    const interesEsperado = Math.round(Number(loan.amount) * effectiveRate * 100) / 100;
+                    const isPeriodPaid = loan.status === loan_entity_1.LoanStatus.PAID || mp.isPaid;
+                    if (!isPeriodPaid) {
+                        interesPendienteCapsula += interesEsperado;
+                        const capitalEsperado = Math.max(0, Number(mp.expectedAmount) - interesEsperado);
+                        loanCapitalPendiente += capitalEsperado;
                     }
                 }
-                else if (loan.loanType === 'Indefinido') {
-                    interesEsperadoIndefinido += Math.round(Number(loan.currentBalance || 0) * rate * 100) / 100;
+                capitalPendienteCapsula += loanCapitalPendiente;
+                if (loanCapitalPendiente > 0) {
+                    const pe = pagosPendientes.find(p => p.id === loan.id);
+                    if (pe)
+                        pe.capitalPendienteMes = loanCapitalPendiente;
+                    const mo = pagosMorosos.find(p => p.id === loan.id);
+                    if (mo)
+                        mo.capitalPendienteMes = loanCapitalPendiente;
+                }
+            }
+            else if (loan.loanType === 'Indefinido' &&
+                (loan.status === loan_entity_1.LoanStatus.ACTIVE || loan.status === loan_entity_1.LoanStatus.OVERDUE)) {
+                const rate = Number(loan.monthlyInterestRate || 0) / 100;
+                const expectedInterest = Math.round(Number(loan.currentBalance || 0) * rate * 100) / 100;
+                if (!this.hasPaidThisMonth(loan)) {
+                    interesPendienteIndefinido += expectedInterest;
                 }
             }
         }
         const pagosMes = await this.getMonthlyPaymentsBreakdown();
+        interesEsperadoCapsula = pagosMes.interesCapsula + interesPendienteCapsula;
+        interesEsperadoIndefinido = pagosMes.interesIndefinido + interesPendienteIndefinido;
+        capitalRecibidoCapsula = pagosMes.capitalCapsula;
+        capitalEsperadoCapsula = capitalRecibidoCapsula + capitalPendienteCapsula;
         const prestamosVencidos = pagosMorosos.length;
         const montoVencido = pagosMorosos.reduce((sum, p) => sum + p.monto, 0);
         const prestamosActivos = pagosAlDia.length + pagosPendientes.length;

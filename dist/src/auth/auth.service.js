@@ -44,7 +44,7 @@ let AuthService = class AuthService {
         if (!user.isActive) {
             throw new common_1.UnauthorizedException('La cuenta está desactivada');
         }
-        const payload = { username: user.username, sub: user.id, role: user.role };
+        const payload = { username: user.username, sub: user.id, role: user.role, fullName: user.fullName };
         return {
             access_token: this.jwtService.sign(payload),
             user: {

@@ -57,6 +57,7 @@ export interface DashboardStats {
     diasRestantes: number;
     loanType: string;
     diaEsperado: number;
+    capitalPendienteMes?: number;
   }>;
   pagosMorosos: Array<{
     id: number;
@@ -67,6 +68,7 @@ export interface DashboardStats {
     loanType: string;
     mesesDeuda: number;
     diaEsperado: number;
+    capitalPendienteMes?: number;
   }>;
 
   // Listas detalladas
@@ -130,12 +132,15 @@ export class DashboardService {
     let totalRecaudadoCapsula = 0;
     let totalRecaudadoIndefinido = 0;
 
-    // Métricas mensuales nuevas
-    let interesEsperadoCapsula = 0;
-    let interesEsperadoIndefinido = 0;
+    // Métricas mensuales — se acumulan pendientes en el loop, luego se suman con bitácora
+    let interesPendienteCapsula = 0;   // Interés de periodos cápsula sin pagar
+    let interesPendienteIndefinido = 0; // Interés de indefinidos que no han pagado este mes
     const interesEsperadoExtras = 0;
-    let capitalEsperadoCapsula = 0;
-    let capitalRecibidoCapsula = 0;
+    let interesEsperadoCapsula = 0;    // Se calcula: bitácora + pendiente
+    let interesEsperadoIndefinido = 0; // Se calcula: bitácora + pendiente
+    let capitalPendienteCapsula = 0;   // Capital de periodos sin pagar del mes
+    let capitalEsperadoCapsula = 0;    // Se calcula: bitácora + pendiente
+    let capitalRecibidoCapsula = 0;    // Se asigna desde payments reales (bitácora)
 
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -316,53 +321,72 @@ export class DashboardService {
         }
       }
 
-      // Calcular interés esperado y capital del mes actual (solo préstamos activos/vencidos)
-      if (
-        loan.status === LoanStatus.ACTIVE ||
-        loan.status === LoanStatus.OVERDUE
-      ) {
-        const rate = Number(loan.monthlyInterestRate || 0) / 100;
+      // Calcular interés esperado y capital del mes actual
+      // Para Cápsula: usar calendario de monthly_payments
+      // Excluir CANCELLED (no se espera dinero de préstamos cancelados)
+      if (loan.loanType === 'Cápsula' && loan.monthlyPayments && loan.status !== LoanStatus.CANCELLED) {
+        // Periodos de Feb ordenados por dueDate
+        const febMps = loan.monthlyPayments
+          .filter(mp => {
+            const d = this.toLocalDate(mp.dueDate);
+            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+          })
+          .sort((a, b) => this.toLocalDate(a.dueDate).getTime() - this.toLocalDate(b.dueDate).getTime());
 
-        if (loan.loanType === 'Cápsula' && loan.monthlyPayments) {
-          // Para Cápsula: buscar monthly_payments con dueDate en el mes actual
-          for (const mp of loan.monthlyPayments) {
-            const dueDate = this.toLocalDate(mp.dueDate);
-            if (
-              dueDate.getMonth() === currentMonth &&
-              dueDate.getFullYear() === currentYear
-            ) {
-              // Interés esperado por periodo
-              const effectiveRate =
-                loan.modality === 'quincenas' ? rate / 2 : rate;
-              const interesEsperado = Math.round(
-                Number(loan.amount) * effectiveRate * 100,
-              ) / 100;
-              interesEsperadoCapsula += interesEsperado;
-
-              // Capital esperado = monto esperado del periodo - interés esperado
-              const capitalEsperado = Math.max(
-                0,
-                Number(mp.expectedAmount) - interesEsperado,
-              );
-              capitalEsperadoCapsula += capitalEsperado;
-
-              // Si ya pagó, sumar al capital recibido
-              if (mp.isPaid) {
-                capitalRecibidoCapsula += Number(mp.capitalPaid || 0);
-              }
-            }
-          }
-        } else if (loan.loanType === 'Indefinido') {
-          // Para Indefinido: interés = currentBalance * tasa mensual
-          interesEsperadoIndefinido += Math.round(
-            Number(loan.currentBalance || 0) * rate * 100,
+        let loanCapitalPendiente = 0;
+        for (const mp of febMps) {
+          const rate = Number(loan.monthlyInterestRate || 0) / 100;
+          const effectiveRate =
+            loan.modality === 'quincenas' ? rate / 2 : rate;
+          const interesEsperado = Math.round(
+            Number(loan.amount) * effectiveRate * 100,
           ) / 100;
+          // PAID: préstamo liquidado, todos los periodos están cubiertos
+          const isPeriodPaid = loan.status === LoanStatus.PAID || mp.isPaid;
+          if (!isPeriodPaid) {
+            interesPendienteCapsula += interesEsperado;
+            const capitalEsperado = Math.max(
+              0,
+              Number(mp.expectedAmount) - interesEsperado,
+            );
+            loanCapitalPendiente += capitalEsperado;
+          }
+        }
+
+        capitalPendienteCapsula += loanCapitalPendiente;
+
+        // Enganchar capitalPendienteMes al timeline (pendientes o morosos)
+        if (loanCapitalPendiente > 0) {
+          const pe = pagosPendientes.find(p => p.id === loan.id);
+          if (pe) pe.capitalPendienteMes = loanCapitalPendiente;
+          const mo = pagosMorosos.find(p => p.id === loan.id);
+          if (mo) mo.capitalPendienteMes = loanCapitalPendiente;
+        }
+      } else if (
+        loan.loanType === 'Indefinido' &&
+        (loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.OVERDUE)
+      ) {
+        // Indefinido: solo acumular pendiente de los que NO han pagado este mes
+        const rate = Number(loan.monthlyInterestRate || 0) / 100;
+        const expectedInterest = Math.round(
+          Number(loan.currentBalance || 0) * rate * 100,
+        ) / 100;
+        if (!this.hasPaidThisMonth(loan)) {
+          interesPendienteIndefinido += expectedInterest;
         }
       }
     }
 
     // Calcular pagos recibidos del mes actual con desglose
     const pagosMes = await this.getMonthlyPaymentsBreakdown();
+
+    // Esperado = Recibido real (bitácora) + Pendiente por cobrar
+    // Interés
+    interesEsperadoCapsula = pagosMes.interesCapsula + interesPendienteCapsula;
+    interesEsperadoIndefinido = pagosMes.interesIndefinido + interesPendienteIndefinido;
+    // Capital cápsula
+    capitalRecibidoCapsula = pagosMes.capitalCapsula;
+    capitalEsperadoCapsula = capitalRecibidoCapsula + capitalPendienteCapsula;
 
     // Derivar métricas de vencidos y próximos a vencer del timeline
     const prestamosVencidos = pagosMorosos.length;

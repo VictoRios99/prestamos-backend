@@ -41,6 +41,7 @@ export interface DashboardStats {
         diasRestantes: number;
         loanType: string;
         diaEsperado: number;
+        capitalPendienteMes?: number;
     }>;
     pagosMorosos: Array<{
         id: number;
@@ -51,6 +52,7 @@ export interface DashboardStats {
         loanType: string;
         mesesDeuda: number;
         diaEsperado: number;
+        capitalPendienteMes?: number;
     }>;
     prestamosVencidosDetalle: any[];
     prestamosPorVencer: any[];

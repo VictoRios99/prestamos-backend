@@ -15,6 +15,7 @@ const class_transformer_1 = require("class-transformer");
 var UserRole;
 (function (UserRole) {
     UserRole["SUPER_ADMIN"] = "SUPER_ADMIN";
+    UserRole["ADMIN"] = "ADMIN";
     UserRole["OPERATOR"] = "OPERATOR";
     UserRole["AUDITOR"] = "AUDITOR";
 })(UserRole || (exports.UserRole = UserRole = {}));

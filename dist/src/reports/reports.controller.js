@@ -21,19 +21,33 @@ const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const user_entity_1 = require("../users/entities/user.entity");
+const activity_service_1 = require("../activity/activity.service");
+const activity_log_entity_1 = require("../activity/entities/activity-log.entity");
+const get_client_ip_1 = require("../common/utils/get-client-ip");
 let ReportsController = class ReportsController {
     loansService;
     paymentsService;
     excelExportService;
-    constructor(loansService, paymentsService, excelExportService) {
+    activityService;
+    constructor(loansService, paymentsService, excelExportService, activityService) {
         this.loansService = loansService;
         this.paymentsService = paymentsService;
         this.excelExportService = excelExportService;
+        this.activityService = activityService;
     }
-    async exportLoans(res) {
+    async exportLoans(res, req) {
         try {
             const loans = await this.loansService.findAll();
             const buffer = await this.generateLoansExcel(loans);
+            const user = req.user;
+            this.activityService.log({
+                action: activity_log_entity_1.ActivityAction.EXPORT_REPORT,
+                userId: user.userId,
+                userName: user.fullName || user.username,
+                details: { report: 'prestamos' },
+                ipAddress: (0, get_client_ip_1.getClientIp)(req),
+                userAgent: req.headers['user-agent'],
+            });
             res.set({
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Content-Disposition': 'attachment; filename=prestamos.xlsx',
@@ -43,10 +57,10 @@ let ReportsController = class ReportsController {
         }
         catch (error) {
             console.error('Error exporting loans:', error);
-            res.status(500).json({ error: 'Error al exportar préstamos' });
+            res.status(500).json({ error: 'Error al exportar prestamos' });
         }
     }
-    async exportPayments(res, startDate, endDate, reportType) {
+    async exportPayments(res, req, startDate, endDate, reportType) {
         try {
             const start = startDate
                 ? new Date(startDate)
@@ -63,6 +77,15 @@ let ReportsController = class ReportsController {
                 end = undefined;
             }
             const buffer = await this.excelExportService.exportPayments(start, end);
+            const user = req.user;
+            this.activityService.log({
+                action: activity_log_entity_1.ActivityAction.EXPORT_REPORT,
+                userId: user.userId,
+                userName: user.fullName || user.username,
+                details: { report: 'pagos', startDate, endDate, reportType },
+                ipAddress: (0, get_client_ip_1.getClientIp)(req),
+                userAgent: req.headers['user-agent'],
+            });
             res.set({
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Content-Disposition': 'attachment; filename=pagos.xlsx',
@@ -75,9 +98,18 @@ let ReportsController = class ReportsController {
             res.status(500).json({ error: 'Error al exportar pagos' });
         }
     }
-    async exportOverdueLoans(res) {
+    async exportOverdueLoans(res, req) {
         try {
             const buffer = await this.excelExportService.exportOverdueLoans();
+            const user = req.user;
+            this.activityService.log({
+                action: activity_log_entity_1.ActivityAction.EXPORT_REPORT,
+                userId: user.userId,
+                userName: user.fullName || user.username,
+                details: { report: 'prestamos-vencidos' },
+                ipAddress: (0, get_client_ip_1.getClientIp)(req),
+                userAgent: req.headers['user-agent'],
+            });
             res.set({
                 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 'Content-Disposition': 'attachment; filename=prestamos-vencidos.xlsx',
@@ -87,7 +119,7 @@ let ReportsController = class ReportsController {
         }
         catch (error) {
             console.error('Error exporting overdue loans:', error);
-            res.status(500).json({ error: 'Error al exportar préstamos vencidos' });
+            res.status(500).json({ error: 'Error al exportar prestamos vencidos' });
         }
     }
     async getDashboardReport() {
@@ -112,20 +144,20 @@ let ReportsController = class ReportsController {
     async generateLoansExcel(loans) {
         const ExcelJS = require('exceljs');
         const workbook = new ExcelJS.Workbook();
-        workbook.creator = 'Sistema de Préstamos';
+        workbook.creator = 'Sistema de Prestamos';
         workbook.created = new Date();
-        const worksheet = workbook.addWorksheet('Préstamos');
+        const worksheet = workbook.addWorksheet('Prestamos');
         worksheet.columns = [
             { header: 'ID', key: 'id', width: 10 },
             { header: 'Cliente', key: 'customer', width: 25 },
-            { header: 'Fecha Préstamo', key: 'loanDate', width: 15 },
+            { header: 'Fecha Prestamo', key: 'loanDate', width: 15 },
             { header: 'Monto Original', key: 'amount', width: 15 },
             { header: 'Saldo Actual', key: 'currentBalance', width: 15 },
-            { header: 'Total Interés Pagado', key: 'totalInterestPaid', width: 18 },
+            { header: 'Total Interes Pagado', key: 'totalInterestPaid', width: 18 },
             { header: 'Total Capital Pagado', key: 'totalCapitalPaid', width: 18 },
             { header: 'Quincenas Pagadas', key: 'monthsPaid', width: 15 },
             { header: 'Estado', key: 'status', width: 12 },
-            { header: 'Último Pago', key: 'lastPaymentDate', width: 15 },
+            { header: 'Ultimo Pago', key: 'lastPaymentDate', width: 15 },
         ];
         worksheet.getRow(1).font = { bold: true };
         worksheet.getRow(1).fill = {
@@ -182,25 +214,28 @@ exports.ReportsController = ReportsController;
 __decorate([
     (0, common_1.Get)('loans/export'),
     __param(0, (0, common_1.Res)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportLoans", null);
 __decorate([
     (0, common_1.Get)('payments/export'),
     __param(0, (0, common_1.Res)()),
-    __param(1, (0, common_1.Query)('startDate')),
-    __param(2, (0, common_1.Query)('endDate')),
-    __param(3, (0, common_1.Query)('reportType')),
+    __param(1, (0, common_1.Req)()),
+    __param(2, (0, common_1.Query)('startDate')),
+    __param(3, (0, common_1.Query)('endDate')),
+    __param(4, (0, common_1.Query)('reportType')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, String, String, String]),
+    __metadata("design:paramtypes", [Object, Object, String, String, String]),
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportPayments", null);
 __decorate([
     (0, common_1.Get)('overdue/export'),
     __param(0, (0, common_1.Res)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportOverdueLoans", null);
 __decorate([
@@ -211,10 +246,11 @@ __decorate([
 ], ReportsController.prototype, "getDashboardReport", null);
 exports.ReportsController = ReportsController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN),
     (0, common_1.Controller)('reports'),
     __metadata("design:paramtypes", [loans_service_1.LoansService,
         payments_service_1.PaymentsService,
-        excel_export_service_1.ExcelExportService])
+        excel_export_service_1.ExcelExportService,
+        activity_service_1.ActivityService])
 ], ReportsController);
 //# sourceMappingURL=reports.controller.js.map

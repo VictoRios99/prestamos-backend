@@ -22,13 +22,30 @@ const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const user_entity_1 = require("../users/entities/user.entity");
+const activity_service_1 = require("../activity/activity.service");
+const activity_log_entity_1 = require("../activity/entities/activity-log.entity");
+const get_client_ip_1 = require("../common/utils/get-client-ip");
 let CustomersController = class CustomersController {
     customersService;
-    constructor(customersService) {
+    activityService;
+    constructor(customersService, activityService) {
         this.customersService = customersService;
+        this.activityService = activityService;
     }
-    create(createCustomerDto, req) {
-        return this.customersService.create(createCustomerDto, req.user.userId);
+    async create(createCustomerDto, req) {
+        const user = req.user;
+        const customer = await this.customersService.create(createCustomerDto, user.userId);
+        this.activityService.log({
+            action: activity_log_entity_1.ActivityAction.CREATE_CUSTOMER,
+            userId: user.userId,
+            userName: user.fullName || user.username,
+            entityType: 'customer',
+            entityId: customer.id,
+            details: { name: `${createCustomerDto.firstName} ${createCustomerDto.lastName}` },
+            ipAddress: (0, get_client_ip_1.getClientIp)(req),
+            userAgent: req.headers['user-agent'],
+        });
+        return customer;
     }
     findAll() {
         return this.customersService.findAll();
@@ -36,18 +53,40 @@ let CustomersController = class CustomersController {
     findOne(id) {
         return this.customersService.findOne(+id);
     }
-    update(id, updateCustomerDto) {
-        return this.customersService.update(+id, updateCustomerDto);
+    async update(id, updateCustomerDto, req) {
+        const user = req.user;
+        const result = await this.customersService.update(+id, updateCustomerDto);
+        this.activityService.log({
+            action: activity_log_entity_1.ActivityAction.UPDATE_CUSTOMER,
+            userId: user.userId,
+            userName: user.fullName || user.username,
+            entityType: 'customer',
+            entityId: +id,
+            ipAddress: (0, get_client_ip_1.getClientIp)(req),
+            userAgent: req.headers['user-agent'],
+        });
+        return result;
     }
-    remove(id) {
-        return this.customersService.remove(+id);
+    async remove(id, req) {
+        const user = req.user;
+        const result = await this.customersService.remove(+id);
+        this.activityService.log({
+            action: activity_log_entity_1.ActivityAction.DELETE_CUSTOMER,
+            userId: user.userId,
+            userName: user.fullName || user.username,
+            entityType: 'customer',
+            entityId: +id,
+            ipAddress: (0, get_client_ip_1.getClientIp)(req),
+            userAgent: req.headers['user-agent'],
+        });
+        return result;
     }
     async bulkUpload(file) {
         if (!file) {
-            throw new common_1.BadRequestException('No se ha proporcionado ningún archivo');
+            throw new common_1.BadRequestException('No se ha proporcionado ningun archivo');
         }
         if (!file.originalname.match(/\.(xlsx|xls)$/)) {
-            throw new common_1.BadRequestException('Formato de archivo inválido. Solo se permiten archivos Excel (.xlsx, .xls)');
+            throw new common_1.BadRequestException('Formato de archivo invalido. Solo se permiten archivos Excel (.xlsx, .xls)');
         }
         return this.customersService.bulkUpload(file.buffer);
     }
@@ -56,12 +95,12 @@ exports.CustomersController = CustomersController;
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN, user_entity_1.UserRole.OPERATOR),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_customer_dto_1.CreateCustomerDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], CustomersController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
@@ -79,26 +118,28 @@ __decorate([
 __decorate([
     (0, common_1.Put)(':id'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN, user_entity_1.UserRole.OPERATOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_customer_dto_1.UpdateCustomerDto]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [String, update_customer_dto_1.UpdateCustomerDto, Object]),
+    __metadata("design:returntype", Promise)
 ], CustomersController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
 ], CustomersController.prototype, "remove", null);
 __decorate([
     (0, common_1.Post)('bulk-upload'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN, user_entity_1.UserRole.OPERATOR),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
     __param(0, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
@@ -108,6 +149,7 @@ __decorate([
 exports.CustomersController = CustomersController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('customers'),
-    __metadata("design:paramtypes", [customers_service_1.CustomersService])
+    __metadata("design:paramtypes", [customers_service_1.CustomersService,
+        activity_service_1.ActivityService])
 ], CustomersController);
 //# sourceMappingURL=customers.controller.js.map

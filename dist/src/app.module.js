@@ -22,6 +22,7 @@ const loan_entity_1 = require("./loans/entities/loan.entity");
 const monthly_payment_entity_1 = require("./loans/entities/monthly-payment.entity");
 const payment_entity_1 = require("./payments/entities/payment.entity");
 const cash_movement_entity_1 = require("./cash-movements/entities/cash-movement.entity");
+const activity_log_entity_1 = require("./activity/entities/activity-log.entity");
 const auth_module_1 = require("./auth/auth.module");
 const users_module_1 = require("./users/users.module");
 const customers_module_1 = require("./customers/customers.module");
@@ -32,6 +33,7 @@ const reports_module_1 = require("./reports/reports.module");
 const dashboard_module_1 = require("./dashboard/dashboard.module");
 const notifications_module_1 = require("./notifications/notifications.module");
 const tasks_module_1 = require("./tasks/tasks.module");
+const activity_module_1 = require("./activity/activity.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -63,7 +65,7 @@ exports.AppModule = AppModule = __decorate([
                     ssl: config.get('DB_SSL') === 'true'
                         ? { rejectUnauthorized: false }
                         : false,
-                    entities: [user_entity_1.User, customer_entity_1.Customer, loan_entity_1.Loan, monthly_payment_entity_1.MonthlyPayment, payment_entity_1.Payment, cash_movement_entity_1.CashMovement],
+                    entities: [user_entity_1.User, customer_entity_1.Customer, loan_entity_1.Loan, monthly_payment_entity_1.MonthlyPayment, payment_entity_1.Payment, cash_movement_entity_1.CashMovement, activity_log_entity_1.ActivityLog],
                     synchronize: false,
                 }),
             }),
@@ -77,6 +79,7 @@ exports.AppModule = AppModule = __decorate([
             dashboard_module_1.DashboardModule,
             notifications_module_1.NotificationsModule,
             tasks_module_1.TasksModule,
+            activity_module_1.ActivityModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [

@@ -1,9 +1,11 @@
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { ActivityService } from '../activity/activity.service';
 import { Request } from 'express';
 export declare class PaymentsController {
     private readonly paymentsService;
-    constructor(paymentsService: PaymentsService);
+    private readonly activityService;
+    constructor(paymentsService: PaymentsService, activityService: ActivityService);
     create(createPaymentDto: CreatePaymentDto, req: Request): Promise<import("./entities/payment.entity").Payment>;
     findAll(): Promise<import("./entities/payment.entity").Payment[]>;
     findOne(id: string): Promise<import("./entities/payment.entity").Payment>;
@@ -19,5 +21,5 @@ export declare class PaymentsController {
         };
     }>;
     findByLoan(loanId: string): Promise<import("./entities/payment.entity").Payment[]>;
-    remove(id: string): Promise<void>;
+    remove(id: string, req: Request): Promise<void>;
 }

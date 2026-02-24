@@ -20,13 +20,30 @@ const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 const roles_guard_1 = require("../auth/guards/roles.guard");
 const roles_decorator_1 = require("../auth/decorators/roles.decorator");
 const user_entity_1 = require("../users/entities/user.entity");
+const activity_service_1 = require("../activity/activity.service");
+const activity_log_entity_1 = require("../activity/entities/activity-log.entity");
+const get_client_ip_1 = require("../common/utils/get-client-ip");
 let LoansController = class LoansController {
     loansService;
-    constructor(loansService) {
+    activityService;
+    constructor(loansService, activityService) {
         this.loansService = loansService;
+        this.activityService = activityService;
     }
-    create(createLoanDto, req) {
-        return this.loansService.create(createLoanDto, req.user.userId);
+    async create(createLoanDto, req) {
+        const user = req.user;
+        const loan = await this.loansService.create(createLoanDto, user.userId);
+        this.activityService.log({
+            action: activity_log_entity_1.ActivityAction.CREATE_LOAN,
+            userId: user.userId,
+            userName: user.fullName || user.username,
+            entityType: 'loan',
+            entityId: loan.id,
+            details: { amount: createLoanDto.amount, loanType: createLoanDto.loanType },
+            ipAddress: (0, get_client_ip_1.getClientIp)(req),
+            userAgent: req.headers['user-agent'],
+        });
+        return loan;
     }
     findAll() {
         return this.loansService.findAll();
@@ -43,20 +60,31 @@ let LoansController = class LoansController {
     findById(id) {
         return this.loansService.getLoanDetails(+id);
     }
-    remove(id) {
-        return this.loansService.remove(+id);
+    async remove(id, req) {
+        const user = req.user;
+        const result = await this.loansService.remove(+id);
+        this.activityService.log({
+            action: activity_log_entity_1.ActivityAction.DELETE_LOAN,
+            userId: user.userId,
+            userName: user.fullName || user.username,
+            entityType: 'loan',
+            entityId: +id,
+            ipAddress: (0, get_client_ip_1.getClientIp)(req),
+            userAgent: req.headers['user-agent'],
+        });
+        return result;
     }
 };
 exports.LoansController = LoansController;
 __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN, user_entity_1.UserRole.OPERATOR),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [create_loan_dto_1.CreateLoanDto, Object]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], LoansController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
@@ -94,15 +122,17 @@ __decorate([
 __decorate([
     (0, common_1.Delete)(':id'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
 ], LoansController.prototype, "remove", null);
 exports.LoansController = LoansController = __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('loans'),
-    __metadata("design:paramtypes", [loans_service_1.LoansService])
+    __metadata("design:paramtypes", [loans_service_1.LoansService,
+        activity_service_1.ActivityService])
 ], LoansController);
 //# sourceMappingURL=loans.controller.js.map
