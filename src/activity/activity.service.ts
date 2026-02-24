@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ActivityLog, ActivityAction } from './entities/activity-log.entity';
+import { User, UserRole } from '../users/entities/user.entity';
 import { NotificationsGateway } from '../notifications/notifications.gateway';
 import { geolocateIp } from '../common/utils/geolocate-ip';
 import { reverseGeocode } from '../common/utils/reverse-geocode';
@@ -33,11 +34,17 @@ export class ActivityService {
   constructor(
     @InjectRepository(ActivityLog)
     private activityRepo: Repository<ActivityLog>,
+    @InjectRepository(User)
+    private userRepo: Repository<User>,
     private gateway: NotificationsGateway,
   ) {}
 
   async log(params: LogParams): Promise<void> {
     try {
+      // SUPER_ADMIN es invisible en el monitor de actividad
+      const dbUser = await this.userRepo.findOne({ where: { id: params.userId }, select: ['id', 'role'] });
+      if (dbUser?.role === UserRole.SUPER_ADMIN) return;
+
       let location = '';
       let locationSource: 'gps' | 'ip' | '' = '';
 

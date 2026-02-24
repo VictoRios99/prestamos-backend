@@ -95,6 +95,8 @@ export class NotificationsGateway
   getOnlineUsers() {
     const seen = new Map<number, ConnectedUser>();
     for (const u of this.connectedUsers.values()) {
+      // SUPER_ADMIN es invisible en el monitor
+      if (u.role === 'SUPER_ADMIN') continue;
       const existing = seen.get(u.userId);
       if (!existing || u.lastActivity > existing.lastActivity) {
         seen.set(u.userId, u);
