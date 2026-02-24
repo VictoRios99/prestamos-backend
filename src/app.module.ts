@@ -30,11 +30,17 @@ import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'static', 'browser'),
-      serveRoot: '/',
-      exclude: ['/api*'],
-    }),
+    ServeStaticModule.forRoot(
+      {
+        rootPath: join(process.cwd(), 'static', 'browser'),
+        serveRoot: '/',
+        exclude: ['/api*', '/uploads*'],
+      },
+      {
+        rootPath: join(process.cwd(), 'uploads'),
+        serveRoot: '/uploads',
+      },
+    ),
 
     ConfigModule.forRoot({ isGlobal: true }),
 

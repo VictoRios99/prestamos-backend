@@ -1,6 +1,7 @@
 export declare enum UserRole {
     SUPER_ADMIN = "SUPER_ADMIN",
-    OPERATOR = "OPERATOR"
+    OPERATOR = "OPERATOR",
+    AUDITOR = "AUDITOR"
 }
 export declare class User {
     id: number;
@@ -9,6 +10,7 @@ export declare class User {
     password: string;
     fullName: string;
     role: UserRole;
+    profilePhoto: string;
     isActive: boolean;
     createdAt: Date;
     updatedAt: Date;

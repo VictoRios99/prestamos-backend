@@ -18,6 +18,7 @@ const payments_service_1 = require("../payments/payments.service");
 const monthly_payment_entity_1 = require("../loans/entities/monthly-payment.entity");
 const cash_movements_service_1 = require("../cash-movements/cash-movements.service");
 const cash_movement_entity_1 = require("../cash-movements/entities/cash-movement.entity");
+const roles_guard_1 = require("../auth/guards/roles.guard");
 let ReportsModule = class ReportsModule {
 };
 exports.ReportsModule = ReportsModule;
@@ -32,6 +33,7 @@ exports.ReportsModule = ReportsModule = __decorate([
             loans_service_1.LoansService,
             payments_service_1.PaymentsService,
             cash_movements_service_1.CashMovementsService,
+            roles_guard_1.RolesGuard,
         ],
         exports: [excel_export_service_1.ExcelExportService],
     })

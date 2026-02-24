@@ -20,7 +20,8 @@ let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(pas
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get('JWT_SECRET') || 'default-secret',
+            secretOrKey: configService.get('JWT_SECRET') ??
+                (() => { throw new Error('JWT_SECRET environment variable must be defined'); })(),
         });
         this.configService = configService;
     }

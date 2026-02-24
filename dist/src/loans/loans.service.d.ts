@@ -21,6 +21,11 @@ export declare class LoansService {
         totalAmount: number;
         loans: Loan[];
     }>;
+    updateOverdueStatuses(): Promise<{
+        markedOverdue: number;
+        restoredActive: number;
+        markedPaid: number;
+    }>;
     getCompletedLoans(): Promise<Loan[]>;
     getDashboardStats(): Promise<any>;
 }

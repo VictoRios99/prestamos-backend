@@ -47,6 +47,7 @@ describe('LoansService', () => {
       save: jest.fn().mockResolvedValue({}),
       delete: jest.fn(),
       createQueryBuilder: jest.fn().mockReturnValue(mockLoansQB),
+      query: jest.fn().mockResolvedValue([[], 0]),
     };
 
     mockMonthlyPaymentRepo = {};
@@ -229,43 +230,12 @@ describe('LoansService', () => {
   });
 
   describe('findAll', () => {
-    it('marks ACTIVE loan as OVERDUE in memory if monthlyPayments are past due', async () => {
+    it('returns loans without mutating status', async () => {
       const loan: any = {
         id: 1,
         status: LoanStatus.ACTIVE,
         monthlyPayments: [
           { isPaid: false, dueDate: new Date('2025-01-01') },
-        ],
-      };
-      mockLoansRepo.find.mockResolvedValue([loan]);
-
-      const result = await service.findAll();
-
-      expect(result[0].status).toBe(LoanStatus.OVERDUE);
-    });
-
-    it('does not change PAID loan status', async () => {
-      const loan: any = {
-        id: 1,
-        status: LoanStatus.PAID,
-        monthlyPayments: [
-          { isPaid: false, dueDate: new Date('2025-01-01') },
-        ],
-      };
-      mockLoansRepo.find.mockResolvedValue([loan]);
-
-      const result = await service.findAll();
-
-      expect(result[0].status).toBe(LoanStatus.PAID);
-    });
-
-    it('keeps ACTIVE if all payments are paid or future', async () => {
-      const loan: any = {
-        id: 1,
-        status: LoanStatus.ACTIVE,
-        monthlyPayments: [
-          { isPaid: true, dueDate: new Date('2025-01-01') },
-          { isPaid: false, dueDate: new Date('2027-12-31') },
         ],
       };
       mockLoansRepo.find.mockResolvedValue([loan]);
@@ -316,27 +286,31 @@ describe('LoansService', () => {
   });
 
   describe('updateOverdueStatuses', () => {
-    it('marks ACTIVE loans as OVERDUE and returns counts', async () => {
-      const overdueLoans = [
-        { id: 1, status: LoanStatus.ACTIVE },
-        { id: 2, status: LoanStatus.ACTIVE },
-      ];
-      const activeLoans = [
-        { id: 3, status: LoanStatus.OVERDUE },
-      ];
-
-      mockLoansQB.getMany
-        .mockResolvedValueOnce(overdueLoans)
-        .mockResolvedValueOnce(activeLoans);
+    it('executes raw SQL queries and returns counts', async () => {
+      mockLoansRepo.query
+        .mockResolvedValueOnce([[], 5])   // markedPaid
+        .mockResolvedValueOnce([[], 3])   // markedOverdue
+        .mockResolvedValueOnce([[], 1]);  // restoredActive
 
       const result = await service.updateOverdueStatuses();
 
-      expect(result.markedOverdue).toBe(2);
+      expect(result.markedPaid).toBe(5);
+      expect(result.markedOverdue).toBe(3);
       expect(result.restoredActive).toBe(1);
-      expect(overdueLoans[0].status).toBe(LoanStatus.OVERDUE);
-      expect(overdueLoans[1].status).toBe(LoanStatus.OVERDUE);
-      expect(activeLoans[0].status).toBe(LoanStatus.ACTIVE);
-      expect(mockLoansRepo.save).toHaveBeenCalledTimes(3);
+      expect(mockLoansRepo.query).toHaveBeenCalledTimes(3);
+    });
+
+    it('handles zero affected rows', async () => {
+      mockLoansRepo.query
+        .mockResolvedValueOnce([[], 0])
+        .mockResolvedValueOnce([[], 0])
+        .mockResolvedValueOnce([[], 0]);
+
+      const result = await service.updateOverdueStatuses();
+
+      expect(result.markedPaid).toBe(0);
+      expect(result.markedOverdue).toBe(0);
+      expect(result.restoredActive).toBe(0);
     });
   });
 

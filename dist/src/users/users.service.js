@@ -17,6 +17,7 @@ const common_1 = require("@nestjs/common");
 const typeorm_1 = require("@nestjs/typeorm");
 const typeorm_2 = require("typeorm");
 const user_entity_1 = require("./entities/user.entity");
+const bcrypt = require("bcrypt");
 let UsersService = class UsersService {
     usersRepository;
     constructor(usersRepository) {
@@ -27,6 +28,57 @@ let UsersService = class UsersService {
     }
     async findById(id) {
         return this.usersRepository.findOne({ where: { id } });
+    }
+    async findAll() {
+        return this.usersRepository.find({ order: { createdAt: 'DESC' } });
+    }
+    async create(dto) {
+        const existingUsername = await this.usersRepository.findOne({ where: { username: dto.username } });
+        if (existingUsername) {
+            throw new common_1.ConflictException('El nombre de usuario ya existe');
+        }
+        const existingEmail = await this.usersRepository.findOne({ where: { email: dto.email } });
+        if (existingEmail) {
+            throw new common_1.ConflictException('El email ya está registrado');
+        }
+        if (dto.role === user_entity_1.UserRole.SUPER_ADMIN) {
+            throw new common_1.ForbiddenException('No se puede crear un usuario SUPER_ADMIN');
+        }
+        const hashedPassword = await bcrypt.hash(dto.password, 10);
+        const user = this.usersRepository.create({
+            ...dto,
+            password: hashedPassword,
+            role: dto.role || user_entity_1.UserRole.OPERATOR,
+        });
+        return this.usersRepository.save(user);
+    }
+    async update(id, dto) {
+        const user = await this.usersRepository.findOne({ where: { id } });
+        if (!user) {
+            throw new common_1.NotFoundException('Usuario no encontrado');
+        }
+        if (dto.email && dto.email !== user.email) {
+            const existingEmail = await this.usersRepository.findOne({ where: { email: dto.email } });
+            if (existingEmail) {
+                throw new common_1.ConflictException('El email ya está registrado');
+            }
+        }
+        if (dto.role === user_entity_1.UserRole.SUPER_ADMIN) {
+            throw new common_1.ForbiddenException('No se puede asignar el rol SUPER_ADMIN');
+        }
+        if (dto.password) {
+            dto.password = await bcrypt.hash(dto.password, 10);
+        }
+        Object.assign(user, dto);
+        return this.usersRepository.save(user);
+    }
+    async updateProfilePhoto(id, photoPath) {
+        const user = await this.usersRepository.findOne({ where: { id } });
+        if (!user) {
+            throw new common_1.NotFoundException('Usuario no encontrado');
+        }
+        user.profilePhoto = photoPath;
+        return this.usersRepository.save(user);
     }
 };
 exports.UsersService = UsersService;

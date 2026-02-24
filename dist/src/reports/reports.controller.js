@@ -17,6 +17,10 @@ const common_1 = require("@nestjs/common");
 const loans_service_1 = require("../loans/loans.service");
 const payments_service_1 = require("../payments/payments.service");
 const excel_export_service_1 = require("./excel-export.service");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const roles_guard_1 = require("../auth/guards/roles.guard");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const user_entity_1 = require("../users/entities/user.entity");
 let ReportsController = class ReportsController {
     loansService;
     paymentsService;
@@ -69,6 +73,21 @@ let ReportsController = class ReportsController {
         catch (error) {
             console.error('Error exporting payments:', error);
             res.status(500).json({ error: 'Error al exportar pagos' });
+        }
+    }
+    async exportOverdueLoans(res) {
+        try {
+            const buffer = await this.excelExportService.exportOverdueLoans();
+            res.set({
+                'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'Content-Disposition': 'attachment; filename=prestamos-vencidos.xlsx',
+                'Content-Length': buffer.length,
+            });
+            res.send(buffer);
+        }
+        catch (error) {
+            console.error('Error exporting overdue loans:', error);
+            res.status(500).json({ error: 'Error al exportar préstamos vencidos' });
         }
     }
     async getDashboardReport() {
@@ -178,12 +197,21 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "exportPayments", null);
 __decorate([
+    (0, common_1.Get)('overdue/export'),
+    __param(0, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ReportsController.prototype, "exportOverdueLoans", null);
+__decorate([
     (0, common_1.Get)('dashboard'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ReportsController.prototype, "getDashboardReport", null);
 exports.ReportsController = ReportsController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN),
     (0, common_1.Controller)('reports'),
     __metadata("design:paramtypes", [loans_service_1.LoansService,
         payments_service_1.PaymentsService,

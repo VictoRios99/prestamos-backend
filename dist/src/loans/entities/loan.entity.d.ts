@@ -21,6 +21,7 @@ export declare class Loan {
     modality: string;
     loanType: string;
     status: LoanStatus;
+    displayId: string;
     notes: string;
     monthsPaid: number;
     lastPaymentDate: Date;

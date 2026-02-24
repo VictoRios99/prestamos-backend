@@ -12,6 +12,7 @@ export declare class AuthController {
             fullName: any;
             role: any;
             isActive: any;
+            profilePhoto: any;
         };
     }>;
 }

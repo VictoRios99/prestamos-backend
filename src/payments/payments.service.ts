@@ -15,6 +15,11 @@ import { MovementType } from '../cash-movements/entities/cash-movement.entity';
 import { User } from '../users/entities/user.entity';
 import { LoansService } from '../loans/loans.service';
 
+/** Redondea a 2 decimales (sin redondear hacia arriba) */
+function roundTwo(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -24,6 +29,15 @@ export class PaymentsService {
     private readonly cashMovementsService: CashMovementsService,
     private readonly entityManager: EntityManager,
   ) {}
+
+  /** Parse a date-only string ('YYYY-MM-DD') into local midnight, avoiding UTC shift */
+  private parseLocalDate(d: string | Date): Date {
+    if (typeof d === 'string') {
+      const [y, m, day] = d.split('-').map(Number);
+      return new Date(y, m - 1, day);
+    }
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
 
   async create(
     createPaymentDto: CreatePaymentDto,
@@ -74,8 +88,8 @@ export class PaymentsService {
             }
 
             const overdueMonthlyPayments = loan.monthlyPayments
-              .filter(mp => !mp.isPaid && new Date(mp.dueDate) < new Date())
-              .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+              .filter(mp => !mp.isPaid && this.parseLocalDate(mp.dueDate) < new Date())
+              .sort((a, b) => this.parseLocalDate(a.dueDate).getTime() - this.parseLocalDate(b.dueDate).getTime());
 
             if (overduePeriodsPaid > overdueMonthlyPayments.length) {
               throw new BadRequestException('El número de periodos a pagar excede los periodos vencidos.');
@@ -98,7 +112,7 @@ export class PaymentsService {
                 interestRateForPeriod = monthlyInterestRate / 2;
               }
 
-              const interestForPeriod = Math.ceil(loanAmount * interestRateForPeriod);
+              const interestForPeriod = roundTwo(loanAmount * interestRateForPeriod);
 
               let interestPaidForPeriod: number;
               let capitalPaidForPeriod: number;
@@ -116,7 +130,7 @@ export class PaymentsService {
 
               mp.isPaid = true;
               mp.paidAmount = expectedAmount;
-              mp.paymentDate = new Date(paymentDate);
+              mp.paymentDate = this.parseLocalDate(paymentDate);
               mp.interestPaid = interestPaidForPeriod;
               mp.capitalPaid = capitalPaidForPeriod;
               await transactionalEntityManager.save(MonthlyPayment, mp);
@@ -137,6 +151,21 @@ export class PaymentsService {
                 throw new BadRequestException('El monto del pago debe ser mayor a 0');
               }
 
+              // Validar que no sean pagos parciales en Cápsulas
+              if (loan.loanType === 'Cápsula' && loan.monthlyPayments) {
+                const nextUnpaidForValidation = loan.monthlyPayments
+                  .filter(mp => !mp.isPaid)
+                  .sort((a, b) => this.parseLocalDate(a.dueDate).getTime() - this.parseLocalDate(b.dueDate).getTime())[0];
+                const minPayment = nextUnpaidForValidation
+                  ? Math.min(Number(nextUnpaidForValidation.expectedAmount), currentBalance)
+                  : currentBalance;
+                if (totalPaymentReceived < minPayment) {
+                  throw new BadRequestException(
+                    `No se permiten pagos parciales en préstamos tipo Cápsula. El monto mínimo es $${minPayment.toLocaleString('es-MX')}.`
+                  );
+                }
+              }
+
               // Calcular interés según modalidad (quincenas o meses)
               const monthlyInterestRate = parseFloat(loan.monthlyInterestRate) / 100;
               let interestRateForPeriod = monthlyInterestRate;
@@ -148,7 +177,7 @@ export class PaymentsService {
               // Cápsula: interés fijo sobre monto original
               // Indefinido: interés sobre capital vigente (se recalcula al pagar capital)
               const interestBase = loan.loanType === 'Cápsula' ? loanAmount : currentBalance;
-              const interestForPeriod = Math.ceil(interestBase * interestRateForPeriod);
+              const interestForPeriod = roundTwo(interestBase * interestRateForPeriod);
 
               if (totalPaymentReceived > interestForPeriod) {
                 actualInterestPaid = interestForPeriod;
@@ -174,11 +203,11 @@ export class PaymentsService {
               if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
                 const nextUnpaid = loan.monthlyPayments
                   .filter(mp => !mp.isPaid)
-                  .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0];
+                  .sort((a, b) => this.parseLocalDate(a.dueDate).getTime() - this.parseLocalDate(b.dueDate).getTime())[0];
                 if (nextUnpaid) {
                   nextUnpaid.isPaid = true;
                   nextUnpaid.paidAmount = totalPaymentReceived;
-                  nextUnpaid.paymentDate = new Date(paymentDate);
+                  nextUnpaid.paymentDate = this.parseLocalDate(paymentDate);
                   nextUnpaid.interestPaid = actualInterestPaid;
                   nextUnpaid.capitalPaid = actualCapitalPaid;
                   await transactionalEntityManager.save(MonthlyPayment, nextUnpaid);
@@ -205,11 +234,13 @@ export class PaymentsService {
 
           loan.totalInterestPaid = Number(loan.totalInterestPaid) + actualInterestPaid;
           loan.totalCapitalPaid = Number(loan.totalCapitalPaid) + actualCapitalPaid;
-          loan.lastPaymentDate = new Date(paymentDate);
+          loan.lastPaymentDate = this.parseLocalDate(paymentDate);
 
           if (loan.currentBalance <= 0) {
             loan.currentBalance = 0;
             loan.status = LoanStatus.PAID;
+          } else if (loan.status === LoanStatus.OVERDUE) {
+            loan.status = LoanStatus.ACTIVE;
           }
 
           await transactionalEntityManager.save(Loan, loan);
@@ -225,7 +256,7 @@ export class PaymentsService {
 
           const payment = transactionalEntityManager.create(Payment, {
             loan,
-            paymentDate: new Date(paymentDate),
+            paymentDate: this.parseLocalDate(paymentDate),
             amount: totalPaymentReceived,
             paymentType,
             paymentMethod: paymentMethod ?? 'CASH',
@@ -343,7 +374,7 @@ export class PaymentsService {
       totalCapital: loan.totalCapitalPaid,
       monthsPaid: loan.monthsPaid,
       remainingBalance: loan.currentBalance,
-      monthlyPayment: Math.ceil(loan.currentBalance * (parseFloat(loan.monthlyInterestRate) / 100)),
+      monthlyPayment: roundTwo(loan.currentBalance * (parseFloat(loan.monthlyInterestRate) / 100)),
     };
 
     return { payments, summary };

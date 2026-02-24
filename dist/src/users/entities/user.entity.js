@@ -16,6 +16,7 @@ var UserRole;
 (function (UserRole) {
     UserRole["SUPER_ADMIN"] = "SUPER_ADMIN";
     UserRole["OPERATOR"] = "OPERATOR";
+    UserRole["AUDITOR"] = "AUDITOR";
 })(UserRole || (exports.UserRole = UserRole = {}));
 let User = class User {
     id;
@@ -24,6 +25,7 @@ let User = class User {
     password;
     fullName;
     role;
+    profilePhoto;
     isActive;
     createdAt;
     updatedAt;
@@ -58,6 +60,10 @@ __decorate([
     }),
     __metadata("design:type", String)
 ], User.prototype, "role", void 0);
+__decorate([
+    (0, typeorm_1.Column)({ name: 'profile_photo', nullable: true }),
+    __metadata("design:type", String)
+], User.prototype, "profilePhoto", void 0);
 __decorate([
     (0, typeorm_1.Column)({ name: 'is_active', default: true }),
     __metadata("design:type", Boolean)

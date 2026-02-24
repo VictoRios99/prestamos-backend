@@ -16,13 +16,17 @@ exports.LoansController = void 0;
 const common_1 = require("@nestjs/common");
 const loans_service_1 = require("./loans.service");
 const create_loan_dto_1 = require("./dto/create-loan.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const roles_guard_1 = require("../auth/guards/roles.guard");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const user_entity_1 = require("../users/entities/user.entity");
 let LoansController = class LoansController {
     loansService;
     constructor(loansService) {
         this.loansService = loansService;
     }
-    create(createLoanDto) {
-        return this.loansService.create(createLoanDto, 1);
+    create(createLoanDto, req) {
+        return this.loansService.create(createLoanDto, req.user.userId);
     }
     findAll() {
         return this.loansService.findAll();
@@ -46,9 +50,12 @@ let LoansController = class LoansController {
 exports.LoansController = LoansController;
 __decorate([
     (0, common_1.Post)(),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_loan_dto_1.CreateLoanDto]),
+    __metadata("design:paramtypes", [create_loan_dto_1.CreateLoanDto, Object]),
     __metadata("design:returntype", void 0)
 ], LoansController.prototype, "create", null);
 __decorate([
@@ -86,12 +93,15 @@ __decorate([
 ], LoansController.prototype, "findById", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], LoansController.prototype, "remove", null);
 exports.LoansController = LoansController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('loans'),
     __metadata("design:paramtypes", [loans_service_1.LoansService])
 ], LoansController);

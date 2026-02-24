@@ -9,6 +9,7 @@ export declare class ExcelExportService {
     private createPaymentsSheet;
     private createSummarySheet;
     private calculateStats;
+    exportOverdueLoans(): Promise<Buffer>;
     private getPaymentTypeText;
     private formatDateRange;
 }

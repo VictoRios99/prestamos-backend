@@ -80,6 +80,9 @@ export class Loan {
   })
   status: LoanStatus;
 
+  @Column({ name: 'display_id', nullable: true })
+  displayId: string;
+
   @Column({ nullable: true, type: 'text' })
   notes: string;
 

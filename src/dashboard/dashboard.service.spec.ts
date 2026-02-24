@@ -29,6 +29,7 @@ describe('DashboardService', () => {
 
   beforeEach(async () => {
     mockPaymentsQB = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       getMany: jest.fn().mockResolvedValue([]),
@@ -191,16 +192,20 @@ describe('DashboardService', () => {
       expect(result.totalRecaudadoIndefinido).toBe(4000);
     });
 
-    it('pagosRecibidosMes sums capital + interest from payments in current month', async () => {
+    it('pagosRecibidosMes sums capital + interest from payments in current month by type', async () => {
       mockLoansRepo.find.mockResolvedValue([]);
       mockPaymentsQB.getMany.mockResolvedValue([
-        { interestPaid: 300, capitalPaid: 1000 },
-        { interestPaid: 200, capitalPaid: 500 },
+        { interestPaid: 300, capitalPaid: 1000, loan: { loanType: 'Cápsula' } },
+        { interestPaid: 200, capitalPaid: 500, loan: { loanType: 'Indefinido' } },
       ]);
 
       const result = await service.getDashboardStats();
 
       expect(result.pagosRecibidosMes).toBe(2000);
+      expect(result.pagosRecibidosMesCapitalCapsula).toBe(1000);
+      expect(result.pagosRecibidosMesInteresCapsula).toBe(300);
+      expect(result.pagosRecibidosMesCapitalIndefinido).toBe(500);
+      expect(result.pagosRecibidosMesInteresIndefinido).toBe(200);
     });
 
     // ========== Nuevas métricas mensuales ==========

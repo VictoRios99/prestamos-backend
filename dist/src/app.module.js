@@ -12,8 +12,16 @@ const serve_static_1 = require("@nestjs/serve-static");
 const path_1 = require("path");
 const config_1 = require("@nestjs/config");
 const typeorm_1 = require("@nestjs/typeorm");
+const throttler_1 = require("@nestjs/throttler");
+const core_1 = require("@nestjs/core");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
+const user_entity_1 = require("./users/entities/user.entity");
+const customer_entity_1 = require("./customers/entities/customer.entity");
+const loan_entity_1 = require("./loans/entities/loan.entity");
+const monthly_payment_entity_1 = require("./loans/entities/monthly-payment.entity");
+const payment_entity_1 = require("./payments/entities/payment.entity");
+const cash_movement_entity_1 = require("./cash-movements/entities/cash-movement.entity");
 const auth_module_1 = require("./auth/auth.module");
 const users_module_1 = require("./users/users.module");
 const customers_module_1 = require("./customers/customers.module");
@@ -22,6 +30,8 @@ const payments_module_1 = require("./payments/payments.module");
 const cash_movements_module_1 = require("./cash-movements/cash-movements.module");
 const reports_module_1 = require("./reports/reports.module");
 const dashboard_module_1 = require("./dashboard/dashboard.module");
+const notifications_module_1 = require("./notifications/notifications.module");
+const tasks_module_1 = require("./tasks/tasks.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -31,9 +41,15 @@ exports.AppModule = AppModule = __decorate([
             serve_static_1.ServeStaticModule.forRoot({
                 rootPath: (0, path_1.join)(process.cwd(), 'static', 'browser'),
                 serveRoot: '/',
-                exclude: ['/api*'],
+                exclude: ['/api*', '/uploads*'],
+            }, {
+                rootPath: (0, path_1.join)(process.cwd(), 'uploads'),
+                serveRoot: '/uploads',
             }),
             config_1.ConfigModule.forRoot({ isGlobal: true }),
+            throttler_1.ThrottlerModule.forRoot({
+                throttlers: [{ ttl: 60000, limit: 30 }],
+            }),
             typeorm_1.TypeOrmModule.forRootAsync({
                 imports: [config_1.ConfigModule],
                 inject: [config_1.ConfigService],
@@ -47,7 +63,7 @@ exports.AppModule = AppModule = __decorate([
                     ssl: config.get('DB_SSL') === 'true'
                         ? { rejectUnauthorized: false }
                         : false,
-                    entities: [(0, path_1.join)(__dirname, '**', '*.entity{.ts,.js}')],
+                    entities: [user_entity_1.User, customer_entity_1.Customer, loan_entity_1.Loan, monthly_payment_entity_1.MonthlyPayment, payment_entity_1.Payment, cash_movement_entity_1.CashMovement],
                     synchronize: false,
                 }),
             }),
@@ -59,9 +75,14 @@ exports.AppModule = AppModule = __decorate([
             cash_movements_module_1.CashMovementsModule,
             reports_module_1.ReportsModule,
             dashboard_module_1.DashboardModule,
+            notifications_module_1.NotificationsModule,
+            tasks_module_1.TasksModule,
         ],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [
+            app_service_1.AppService,
+            { provide: core_1.APP_GUARD, useClass: throttler_1.ThrottlerGuard },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

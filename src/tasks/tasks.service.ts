@@ -14,7 +14,7 @@ export class TasksService {
   async checkOverdueLoans() {
     this.logger.log('Checking for overdue loans...');
     const result = await this.loansService.updateOverdueStatuses();
-    this.logger.log(`Overdue check complete: ${result.markedOverdue} marked overdue, ${result.restoredActive} restored to active`);
+    this.logger.log(`Overdue check complete: ${result.markedPaid} marked paid, ${result.markedOverdue} marked overdue, ${result.restoredActive} restored to active`);
   }
 
   // Ejecutar el primer día de cada mes

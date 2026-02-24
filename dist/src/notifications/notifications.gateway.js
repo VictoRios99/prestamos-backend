@@ -16,11 +16,9 @@ let NotificationsGateway = class NotificationsGateway {
     server;
     connectedClients = new Map();
     handleConnection(client) {
-        console.log(`Client connected: ${client.id}`);
         this.connectedClients.set(client.id, client);
     }
     handleDisconnect(client) {
-        console.log(`Client disconnected: ${client.id}`);
         this.connectedClients.delete(client.id);
     }
     emitNewLoan(loan) {
@@ -49,7 +47,11 @@ __decorate([
 exports.NotificationsGateway = NotificationsGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
-            origin: 'http://localhost:4200',
+            origin: [
+                'http://localhost:4200',
+                'http://127.0.0.1:4200',
+                'https://panel-prestamos.itcooper.mx',
+            ],
             credentials: true,
         },
     })

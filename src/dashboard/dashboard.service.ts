@@ -11,7 +11,11 @@ export interface DashboardStats {
   interesRecabado: number; // Total de intereses cobrados
   cargosExtrasRecaudados: number; // Total de cargos extras cobrados
   capitalEnTransito: number; // Capital que aún está prestado
-  pagosRecibidosMes: number; // Total de pagos recibidos en el mes actual (capital + interés)
+  pagosRecibidosMes: number; // Total de pagos recibidos en el mes actual
+  pagosRecibidosMesCapitalCapsula: number;
+  pagosRecibidosMesInteresCapsula: number;
+  pagosRecibidosMesCapitalIndefinido: number;
+  pagosRecibidosMesInteresIndefinido: number;
 
   // Métricas de morosidad
   prestamosVencidos: number; // Cantidad de préstamos sin pagar
@@ -70,6 +74,27 @@ export interface DashboardStats {
   prestamosPorVencer: any[];
 }
 
+export interface CapitalDistributionEntry {
+  customerId: number;
+  customerName: string;
+  capitalEnTransito: number;
+  percentage: number;
+  loanCount: number;
+  loans: Array<{ id: number; type: string; capital: number }>;
+}
+
+export interface PaymentLogEntry {
+  id: number;
+  paymentDate: string;
+  user: string;
+  customer: string;
+  loanId: number;
+  loanType: string;
+  interestPaid: number;
+  capitalPaid: number;
+  total: number;
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -78,6 +103,16 @@ export class DashboardService {
     @InjectRepository(Payment)
     private paymentsRepository: Repository<Payment>,
   ) {}
+
+  /** Parse a 'date' column (no time) into a local-midnight Date, avoiding timezone shift */
+  private toLocalDate(d: Date | string | null): Date {
+    if (!d) return new Date(0);
+    if (typeof d === 'string') {
+      const [y, m, day] = d.split('-').map(Number);
+      return new Date(y, m - 1, day);
+    }
+    return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
 
   async getDashboardStats(): Promise<DashboardStats> {
     // Obtener todos los préstamos con sus relaciones
@@ -147,95 +182,101 @@ export class DashboardService {
         capitalEnTransito += Math.max(0, Number(loan.amount) - Number(loan.totalCapitalPaid || 0));
       }
 
-      // Clasificar estado de pago del mes (solo préstamos activos/vencidos)
+      // Clasificar estado de pago del mes (solo préstamos activos/vencidos con balance > 0)
       if (
-        loan.status === LoanStatus.ACTIVE ||
-        loan.status === LoanStatus.OVERDUE
+        (loan.status === LoanStatus.ACTIVE ||
+        loan.status === LoanStatus.OVERDUE) &&
+        Number(loan.currentBalance) > 0
       ) {
         const customerName = `${loan.customer?.firstName || ''} ${loan.customer?.lastName || ''}`.trim();
-        const daysSince = this.getDaysSinceLastPayment(loan.lastPaymentDate);
-        const isOverdue = this.isLoanOverdue(loan);
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-        // Obtener MPs del mes actual para clasificación precisa (quincenas, etc.)
-        const thisMonthMPs = (loan.monthlyPayments || []).filter(mp => {
-          const dd = new Date(mp.dueDate);
-          return dd.getMonth() === currentMonth && dd.getFullYear() === currentYear;
-        });
-        const unpaidPastDueThisMonth = thisMonthMPs.filter(mp => !mp.isPaid && new Date(mp.dueDate) < todayStart);
-        const unpaidUpcomingThisMonth = thisMonthMPs.filter(mp => !mp.isPaid && new Date(mp.dueDate) >= todayStart);
+        // --- CÁPSULAS CON CALENDARIO (monthly_payments) ---
+        if (loan.loanType === 'Cápsula' && loan.monthlyPayments && loan.monthlyPayments.length > 0) {
+          // Buscar TODOS los MPs impagos con fecha vencida (cualquier mes)
+          const allUnpaidPastDue = loan.monthlyPayments.filter(
+            mp => !mp.isPaid && this.toLocalDate(mp.dueDate) < todayStart,
+          );
 
-        if (isOverdue || loan.status === LoanStatus.OVERDUE) {
-          // 30+ días sin pagar o status OVERDUE → moroso
-          const diasAtraso = loan.lastPaymentDate
-            ? Math.max(0, daysSince - 30)
-            : Math.max(0, this.getDaysSinceDate(loan.loanDate) - 30);
-          const mesesDeuda = Math.max(1, Math.ceil(diasAtraso / 30));
-          const diaEsperado = this.getExpectedPaymentDay(loan, now);
-          pagosMorosos.push({
-            id: loan.id,
-            customer: customerName,
-            phone: loan.customer?.phone || '',
-            monto: Number(loan.currentBalance || 0),
-            diasAtraso,
-            loanType: loan.loanType || '',
-            mesesDeuda,
-            diaEsperado,
-          });
-        } else if (unpaidPastDueThisMonth.length > 0) {
-          // Tiene MPs vencidos ESTE MES (ej: Q1 del 15 impaga el día 19) → moroso
-          const oldestUnpaid = unpaidPastDueThisMonth.sort(
-            (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-          )[0];
-          const dueDate = new Date(oldestUnpaid.dueDate);
-          const diasAtraso = Math.ceil((now.getTime() - dueDate.getTime()) / 86400000);
-          pagosMorosos.push({
-            id: loan.id,
-            customer: customerName,
-            phone: loan.customer?.phone || '',
-            monto: Number(loan.currentBalance || 0),
-            diasAtraso,
-            loanType: loan.loanType || '',
-            mesesDeuda: 1,
-            diaEsperado: dueDate.getDate(),
-          });
-        } else if (unpaidUpcomingThisMonth.length > 0) {
-          // Tiene MPs futuros este mes (ej: Q2 del 28 sin pagar) → pendiente
-          const nextUnpaid = unpaidUpcomingThisMonth.sort(
-            (a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
-          )[0];
-          const dueDate = new Date(nextUnpaid.dueDate);
-          const diasRestantes = Math.max(0, Math.ceil((dueDate.getTime() - now.getTime()) / 86400000));
-          pagosPendientes.push({
-            id: loan.id,
-            customer: customerName,
-            phone: loan.customer?.phone || '',
-            monto: Number(loan.currentBalance || 0),
-            diasRestantes,
-            loanType: loan.loanType || '',
-            diaEsperado: dueDate.getDate(),
-          });
-        } else if (this.hasPaidThisMonth(loan)) {
-          // Pagó este mes y no tiene MPs pendientes este mes → al día
-          const diaPago = loan.lastPaymentDate
-            ? new Date(loan.lastPaymentDate).getDate()
-            : now.getDate();
-          pagosAlDia.push({
-            id: loan.id,
-            customer: customerName,
-            phone: loan.customer?.phone || '',
-            monto: Number(loan.currentBalance || 0),
-            loanType: loan.loanType || '',
-            diaPago,
-          });
-        } else {
-          // No pagó este mes, sin MPs del mes → heurística por fecha
-          const diaEsperado = this.getExpectedPaymentDay(loan, now);
-          const todayDay = now.getDate();
-          const expectedThisMonth = this.isPaymentExpectedThisMonth(loan, now);
+          if (allUnpaidPastDue.length > 0) {
+            // Tiene periodos vencidos sin pagar
+            const sorted = allUnpaidPastDue.sort(
+              (a, b) => this.toLocalDate(a.dueDate).getTime() - this.toLocalDate(b.dueDate).getTime(),
+            );
+            const oldestDue = this.toLocalDate(sorted[0].dueDate);
+            const diasAtraso = Math.ceil((todayStart.getTime() - oldestDue.getTime()) / 86400000);
+            // Solo moroso si el MP más viejo impago tiene > 1 mes de retraso
+            const morosoDeadline = this.addOneMonth(oldestDue);
+            if (todayStart > morosoDeadline) {
+              pagosMorosos.push({
+                id: loan.id,
+                customer: customerName,
+                phone: loan.customer?.phone || '',
+                monto: Number(loan.currentBalance || 0),
+                diasAtraso,
+                loanType: loan.loanType || '',
+                mesesDeuda: allUnpaidPastDue.length,
+                diaEsperado: oldestDue.getDate(),
+              });
+            } else {
+              // Menos de 1 mes de retraso → pendiente
+              const diasRestantes = Math.max(0, Math.ceil((morosoDeadline.getTime() - now.getTime()) / 86400000));
+              pagosPendientes.push({
+                id: loan.id,
+                customer: customerName,
+                phone: loan.customer?.phone || '',
+                monto: Number(loan.currentBalance || 0),
+                diasRestantes,
+                loanType: loan.loanType || '',
+                diaEsperado: oldestDue.getDate(),
+              });
+            }
+          } else {
+            // Sin MPs vencidos. Buscar próximos MPs pendientes
+            const unpaidUpcoming = loan.monthlyPayments.filter(
+              mp => !mp.isPaid && this.toLocalDate(mp.dueDate) >= todayStart,
+            );
 
-          if (expectedThisMonth && diaEsperado < todayDay) {
-            const diasAtraso = todayDay - diaEsperado;
+            if (unpaidUpcoming.length > 0) {
+              // Tiene MPs futuros sin pagar → pendiente
+              const nextDue = unpaidUpcoming.sort(
+                (a, b) => this.toLocalDate(a.dueDate).getTime() - this.toLocalDate(b.dueDate).getTime(),
+              )[0];
+              const dueDate = this.toLocalDate(nextDue.dueDate);
+              const diasRestantes = Math.max(0, Math.ceil((dueDate.getTime() - now.getTime()) / 86400000));
+              pagosPendientes.push({
+                id: loan.id,
+                customer: customerName,
+                phone: loan.customer?.phone || '',
+                monto: Number(loan.currentBalance || 0),
+                diasRestantes,
+                loanType: loan.loanType || '',
+                diaEsperado: dueDate.getDate(),
+              });
+            } else {
+              // Todos los MPs pagados, calendario completo → al día
+              const diaPago = loan.lastPaymentDate
+                ? this.toLocalDate(loan.lastPaymentDate).getDate()
+                : now.getDate();
+              pagosAlDia.push({
+                id: loan.id,
+                customer: customerName,
+                phone: loan.customer?.phone || '',
+                monto: Number(loan.currentBalance || 0),
+                loanType: loan.loanType || '',
+                diaPago,
+              });
+            }
+          }
+        }
+        // --- PRÉSTAMOS SIN CALENDARIO (Indefinido) ---
+        else {
+          const nextExpected = this.getNextExpectedDateIndefinido(loan);
+
+          if (todayStart > nextExpected) {
+            // Pasó la fecha esperada → moroso
+            const diasAtraso = Math.ceil((todayStart.getTime() - nextExpected.getTime()) / 86400000);
+            const mesesDeuda = this.countMissedCyclesIndefinido(loan, todayStart);
             pagosMorosos.push({
               id: loan.id,
               customer: customerName,
@@ -243,20 +284,25 @@ export class DashboardService {
               monto: Number(loan.currentBalance || 0),
               diasAtraso,
               loanType: loan.loanType || '',
-              mesesDeuda: 1,
-              diaEsperado,
+              mesesDeuda,
+              diaEsperado: nextExpected.getDate(),
+            });
+          } else if (this.hasPaidThisMonth(loan)) {
+            // Pagó este mes y no está vencido → al día
+            const diaPago = loan.lastPaymentDate
+              ? this.toLocalDate(loan.lastPaymentDate).getDate()
+              : now.getDate();
+            pagosAlDia.push({
+              id: loan.id,
+              customer: customerName,
+              phone: loan.customer?.phone || '',
+              monto: Number(loan.currentBalance || 0),
+              loanType: loan.loanType || '',
+              diaPago,
             });
           } else {
-            let diasRestantes: number;
-            let diaEsperadoDisplay: number;
-            if (expectedThisMonth) {
-              diasRestantes = Math.max(0, diaEsperado - todayDay);
-              diaEsperadoDisplay = diaEsperado;
-            } else {
-              diasRestantes = Math.max(0, 30 - daysSince);
-              const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-              diaEsperadoDisplay = Math.min(todayDay + diasRestantes, lastDayOfMonth);
-            }
+            // Aún no vence → pendiente
+            const diasRestantes = Math.max(0, Math.ceil((nextExpected.getTime() - now.getTime()) / 86400000));
             pagosPendientes.push({
               id: loan.id,
               customer: customerName,
@@ -264,7 +310,7 @@ export class DashboardService {
               monto: Number(loan.currentBalance || 0),
               diasRestantes,
               loanType: loan.loanType || '',
-              diaEsperado: diaEsperadoDisplay,
+              diaEsperado: nextExpected.getDate(),
             });
           }
         }
@@ -280,7 +326,7 @@ export class DashboardService {
         if (loan.loanType === 'Cápsula' && loan.monthlyPayments) {
           // Para Cápsula: buscar monthly_payments con dueDate en el mes actual
           for (const mp of loan.monthlyPayments) {
-            const dueDate = new Date(mp.dueDate);
+            const dueDate = this.toLocalDate(mp.dueDate);
             if (
               dueDate.getMonth() === currentMonth &&
               dueDate.getFullYear() === currentYear
@@ -288,9 +334,9 @@ export class DashboardService {
               // Interés esperado por periodo
               const effectiveRate =
                 loan.modality === 'quincenas' ? rate / 2 : rate;
-              const interesEsperado = Math.ceil(
-                Number(loan.amount) * effectiveRate,
-              );
+              const interesEsperado = Math.round(
+                Number(loan.amount) * effectiveRate * 100,
+              ) / 100;
               interesEsperadoCapsula += interesEsperado;
 
               // Capital esperado = monto esperado del periodo - interés esperado
@@ -308,15 +354,15 @@ export class DashboardService {
           }
         } else if (loan.loanType === 'Indefinido') {
           // Para Indefinido: interés = currentBalance * tasa mensual
-          interesEsperadoIndefinido += Math.ceil(
-            Number(loan.currentBalance || 0) * rate,
-          );
+          interesEsperadoIndefinido += Math.round(
+            Number(loan.currentBalance || 0) * rate * 100,
+          ) / 100;
         }
       }
     }
 
-    // Calcular pagos recibidos del mes actual (capital + interés)
-    const pagosRecibidosMes = await this.getMonthlyPaymentsTotal();
+    // Calcular pagos recibidos del mes actual con desglose
+    const pagosMes = await this.getMonthlyPaymentsBreakdown();
 
     // Derivar métricas de vencidos y próximos a vencer del timeline
     const prestamosVencidos = pagosMorosos.length;
@@ -325,7 +371,7 @@ export class DashboardService {
     // Préstamos activos = los que no están morosos ni completados
     const prestamosActivos = pagosAlDia.length + pagosPendientes.length;
     const prestamosCompletados = loans.filter(
-      (l) => l.status === LoanStatus.PAID,
+      (l) => l.status === LoanStatus.PAID || l.status === LoanStatus.CANCELLED,
     ).length;
 
     // Próximos a vencer = todos los pendientes
@@ -346,7 +392,11 @@ export class DashboardService {
       interesRecabado,
       cargosExtrasRecaudados,
       capitalEnTransito,
-      pagosRecibidosMes,
+      pagosRecibidosMes: pagosMes.total,
+      pagosRecibidosMesCapitalCapsula: pagosMes.capitalCapsula,
+      pagosRecibidosMesInteresCapsula: pagosMes.interesCapsula,
+      pagosRecibidosMesCapitalIndefinido: pagosMes.capitalIndefinido,
+      pagosRecibidosMesInteresIndefinido: pagosMes.interesIndefinido,
       prestamosVencidos,
       montoVencido,
       totalPrestamos: loans.length,
@@ -384,22 +434,48 @@ export class DashboardService {
     };
   }
 
-  private async getMonthlyPaymentsTotal(): Promise<number> {
+  private async getMonthlyPaymentsBreakdown(): Promise<{
+    total: number;
+    capitalCapsula: number;
+    interesCapsula: number;
+    capitalIndefinido: number;
+    interesIndefinido: number;
+  }> {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
     const payments = await this.paymentsRepository
       .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.loan', 'loan')
       .where('payment.paymentDate >= :start', { start: startOfMonth })
       .andWhere('payment.paymentDate <= :end', { end: endOfMonth })
       .getMany();
 
-    return payments.reduce(
-      (total, payment) =>
-        total + Number(payment.interestPaid || 0) + Number(payment.capitalPaid || 0),
-      0,
-    );
+    let capitalCapsula = 0;
+    let interesCapsula = 0;
+    let capitalIndefinido = 0;
+    let interesIndefinido = 0;
+
+    for (const p of payments) {
+      const cap = Number(p.capitalPaid || 0);
+      const int = Number(p.interestPaid || 0);
+      if (p.loan?.loanType === 'Cápsula') {
+        capitalCapsula += cap;
+        interesCapsula += int;
+      } else {
+        capitalIndefinido += cap;
+        interesIndefinido += int;
+      }
+    }
+
+    return {
+      total: capitalCapsula + interesCapsula + capitalIndefinido + interesIndefinido,
+      capitalCapsula,
+      interesCapsula,
+      capitalIndefinido,
+      interesIndefinido,
+    };
   }
 
   private isLoanOverdue(loan: Loan): boolean {
@@ -421,9 +497,10 @@ export class DashboardService {
     return this.getDaysSinceDate(lastPaymentDate);
   }
 
-  private getDaysSinceDate(date: Date): number {
+  private getDaysSinceDate(date: Date | string): number {
     const now = new Date();
-    const diffTime = Math.abs(now.getTime() - new Date(date).getTime());
+    const parsed = this.toLocalDate(date);
+    const diffTime = Math.abs(now.getTime() - parsed.getTime());
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
 
@@ -445,7 +522,7 @@ export class DashboardService {
           daysSinceLastPayment: this.getDaysSinceLastPayment(
             loan.lastPaymentDate,
           ),
-          monthlyPayment: Math.ceil((loan.currentBalance || 0) * 0.05),
+          monthlyPayment: Math.round((loan.currentBalance || 0) * 0.05 * 100) / 100,
           status: isOverdue
             ? 'overdue'
             : hasPaidThisMonth
@@ -456,6 +533,50 @@ export class DashboardService {
     });
   }
 
+  /**
+   * Suma 1 mes calendario a una fecha, manejando overflow de días.
+   * Ej: Jan 30 + 1 mes = Feb 28 (no March 2).
+   * Ej: Jan 15 + 1 mes = Feb 15.
+   */
+  private addOneMonth(date: Date): Date {
+    const refDay = date.getDate();
+    const next = new Date(date.getFullYear(), date.getMonth() + 1, refDay);
+    // Si el día desbordó al mes siguiente (ej: Feb 30 → March 2), usar último día del mes destino
+    if (next.getDate() !== refDay) {
+      return new Date(date.getFullYear(), date.getMonth() + 2, 0);
+    }
+    return next;
+  }
+
+  /**
+   * Calcula la próxima fecha esperada de pago para Indefinido.
+   * Usa último pago (o fecha del préstamo) + 1 mes calendario.
+   * Ej: último pago 30 Ene → esperado 28 Feb (último día de Feb).
+   */
+  private getNextExpectedDateIndefinido(loan: Loan): Date {
+    const referenceDate = loan.lastPaymentDate
+      ? this.toLocalDate(loan.lastPaymentDate)
+      : this.toLocalDate(loan.loanDate);
+    return this.addOneMonth(referenceDate);
+  }
+
+  /**
+   * Cuenta cuántos ciclos mensuales ha perdido un préstamo Indefinido.
+   */
+  private countMissedCyclesIndefinido(loan: Loan, today: Date): number {
+    const ref = loan.lastPaymentDate
+      ? this.toLocalDate(loan.lastPaymentDate)
+      : this.toLocalDate(loan.loanDate);
+
+    let meses = 0;
+    let checkDate = this.addOneMonth(ref);
+    while (checkDate < today) {
+      meses++;
+      checkDate = this.addOneMonth(checkDate);
+    }
+    return Math.max(1, meses);
+  }
+
   private isPaymentExpectedThisMonth(loan: Loan, now: Date): boolean {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
@@ -463,7 +584,7 @@ export class DashboardService {
     // Cápsula: verificar si hay monthlyPayment sin pagar este mes
     if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
       return loan.monthlyPayments.some((mp) => {
-        const dueDate = new Date(mp.dueDate);
+        const dueDate = this.toLocalDate(mp.dueDate);
         return (
           dueDate.getMonth() === currentMonth &&
           dueDate.getFullYear() === currentYear &&
@@ -474,7 +595,7 @@ export class DashboardService {
 
     // Indefinido: estimar si lastPayment + 30 cae en este mes
     if (loan.lastPaymentDate) {
-      const estimated = new Date(loan.lastPaymentDate);
+      const estimated = this.toLocalDate(loan.lastPaymentDate);
       estimated.setDate(estimated.getDate() + 30);
       return (
         estimated.getMonth() === currentMonth &&
@@ -492,7 +613,7 @@ export class DashboardService {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
       for (const mp of loan.monthlyPayments) {
-        const dueDate = new Date(mp.dueDate);
+        const dueDate = this.toLocalDate(mp.dueDate);
         if (
           dueDate.getMonth() === currentMonth &&
           dueDate.getFullYear() === currentYear &&
@@ -504,7 +625,7 @@ export class DashboardService {
     }
     // Fallback: estimate from last payment + 30 days
     if (loan.lastPaymentDate) {
-      const estimated = new Date(loan.lastPaymentDate);
+      const estimated = this.toLocalDate(loan.lastPaymentDate);
       estimated.setDate(estimated.getDate() + 30);
       const lastDay = new Date(
         now.getFullYear(),
@@ -521,11 +642,84 @@ export class DashboardService {
     if (!loan.lastPaymentDate) return false;
 
     const now = new Date();
-    const lastPayment = new Date(loan.lastPaymentDate);
+    const lastPayment = this.toLocalDate(loan.lastPaymentDate);
 
     return (
       lastPayment.getMonth() === now.getMonth() &&
       lastPayment.getFullYear() === now.getFullYear()
     );
+  }
+
+  async getCapitalDistribution(): Promise<CapitalDistributionEntry[]> {
+    const loans = await this.loansRepository.find({
+      relations: ['customer'],
+      where: [
+        { status: LoanStatus.ACTIVE },
+        { status: LoanStatus.OVERDUE },
+      ],
+    });
+
+    const customerMap = new Map<
+      number,
+      { name: string; capital: number; loans: Array<{ id: number; type: string; capital: number; amount: number; status: string }> }
+    >();
+
+    for (const loan of loans) {
+      const customerId = loan.customer?.id || 0;
+      const customerName = `${loan.customer?.firstName || ''} ${loan.customer?.lastName || ''}`.trim();
+      const loanCapital = Math.max(0, Number(loan.amount) - Number(loan.totalCapitalPaid || 0));
+
+      if (!customerMap.has(customerId)) {
+        customerMap.set(customerId, { name: customerName, capital: 0, loans: [] });
+      }
+      const entry = customerMap.get(customerId)!;
+      entry.capital += loanCapital;
+      entry.loans.push({ id: loan.id, type: loan.loanType || '', capital: loanCapital, amount: Number(loan.amount), status: loan.status });
+    }
+
+    const totalCapital = Array.from(customerMap.values()).reduce((sum, c) => sum + c.capital, 0);
+
+    return Array.from(customerMap.entries())
+      .map(([customerId, data]) => ({
+        customerId,
+        customerName: data.name,
+        capitalEnTransito: data.capital,
+        percentage: totalCapital > 0 ? Math.round((data.capital / totalCapital) * 1000) / 10 : 0,
+        loanCount: data.loans.length,
+        loans: data.loans,
+      }))
+      .sort((a, b) => b.capitalEnTransito - a.capitalEnTransito);
+  }
+
+  async getPaymentActivityLog(month: number, year: number): Promise<PaymentLogEntry[]> {
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0);
+
+    const payments = await this.paymentsRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.loan', 'loan')
+      .leftJoinAndSelect('loan.customer', 'customer')
+      .leftJoinAndSelect('payment.createdBy', 'user')
+      .where('payment.paymentDate >= :start', { start: startOfMonth })
+      .andWhere('payment.paymentDate <= :end', { end: endOfMonth })
+      .orderBy('payment.paymentDate', 'DESC')
+      .addOrderBy('payment.createdAt', 'DESC')
+      .getMany();
+
+    return payments.map((p) => {
+      const interestPaid = Number(p.interestPaid || 0);
+      const capitalPaid = Number(p.capitalPaid || 0);
+      return {
+        id: p.id,
+        paymentDate: p.paymentDate as unknown as string,
+        user: p.createdBy?.fullName || 'Sistema',
+        customer: `${p.loan?.customer?.firstName || ''} ${p.loan?.customer?.lastName || ''}`.trim(),
+        loanId: p.loan?.id || 0,
+        loanType: p.loan?.loanType || '',
+        interestPaid,
+        capitalPaid,
+        total: interestPaid + capitalPaid,
+      };
+    });
   }
 }

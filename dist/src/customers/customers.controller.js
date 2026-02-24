@@ -18,13 +18,17 @@ const platform_express_1 = require("@nestjs/platform-express");
 const customers_service_1 = require("./customers.service");
 const create_customer_dto_1 = require("./dto/create-customer.dto");
 const update_customer_dto_1 = require("./dto/update-customer.dto");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
+const roles_guard_1 = require("../auth/guards/roles.guard");
+const roles_decorator_1 = require("../auth/decorators/roles.decorator");
+const user_entity_1 = require("../users/entities/user.entity");
 let CustomersController = class CustomersController {
     customersService;
     constructor(customersService) {
         this.customersService = customersService;
     }
-    create(createCustomerDto) {
-        return this.customersService.create(createCustomerDto, 1);
+    create(createCustomerDto, req) {
+        return this.customersService.create(createCustomerDto, req.user.userId);
     }
     findAll() {
         return this.customersService.findAll();
@@ -51,9 +55,12 @@ let CustomersController = class CustomersController {
 exports.CustomersController = CustomersController;
 __decorate([
     (0, common_1.Post)(),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [create_customer_dto_1.CreateCustomerDto]),
+    __metadata("design:paramtypes", [create_customer_dto_1.CreateCustomerDto, Object]),
     __metadata("design:returntype", void 0)
 ], CustomersController.prototype, "create", null);
 __decorate([
@@ -71,6 +78,8 @@ __decorate([
 ], CustomersController.prototype, "findOne", null);
 __decorate([
     (0, common_1.Put)(':id'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -79,6 +88,8 @@ __decorate([
 ], CustomersController.prototype, "update", null);
 __decorate([
     (0, common_1.Delete)(':id'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
@@ -86,6 +97,8 @@ __decorate([
 ], CustomersController.prototype, "remove", null);
 __decorate([
     (0, common_1.Post)('bulk-upload'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.OPERATOR),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
     __param(0, (0, common_1.UploadedFile)()),
     __metadata("design:type", Function),
@@ -93,6 +106,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CustomersController.prototype, "bulkUpload", null);
 exports.CustomersController = CustomersController = __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Controller)('customers'),
     __metadata("design:paramtypes", [customers_service_1.CustomersService])
 ], CustomersController);

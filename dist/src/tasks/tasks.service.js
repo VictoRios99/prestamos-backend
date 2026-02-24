@@ -22,10 +22,8 @@ let TasksService = TasksService_1 = class TasksService {
     }
     async checkOverdueLoans() {
         this.logger.log('Checking for overdue loans...');
-        const overdueLoans = await this.loansService.findOverdueLoans();
-        overdueLoans.loans.forEach((loan) => {
-            this.logger.warn(`Loan #${loan.id} is overdue`);
-        });
+        const result = await this.loansService.updateOverdueStatuses();
+        this.logger.log(`Overdue check complete: ${result.markedPaid} marked paid, ${result.markedOverdue} marked overdue, ${result.restoredActive} restored to active`);
     }
     async generateMonthlyReport() {
         this.logger.log('Generating monthly report...');

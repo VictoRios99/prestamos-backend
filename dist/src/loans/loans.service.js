@@ -23,6 +23,27 @@ const cash_movement_entity_1 = require("../cash-movements/entities/cash-movement
 function getLastDayOfMonth(date) {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
+function roundTwo(v) {
+    return Math.round(v * 100) / 100;
+}
+function addOneMonth(date) {
+    const refDay = date.getDate();
+    const next = new Date(date.getFullYear(), date.getMonth() + 1, refDay);
+    if (next.getDate() !== refDay) {
+        return new Date(date.getFullYear(), date.getMonth() + 2, 0);
+    }
+    return next;
+}
+function countOverdueMonths(referenceDate, today) {
+    const ref = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+    let meses = 0;
+    let checkDate = addOneMonth(ref);
+    while (checkDate < today) {
+        meses++;
+        checkDate = addOneMonth(checkDate);
+    }
+    return meses;
+}
 let LoansService = class LoansService {
     loansRepository;
     monthlyPaymentRepository;
@@ -39,7 +60,7 @@ let LoansService = class LoansService {
             const { amount, customerId } = createLoanDto;
             const loan = transactionalEntityManager.create(loan_entity_1.Loan, {
                 ...createLoanDto,
-                currentBalance: Math.ceil(createLoanDto.totalToPay || createLoanDto.amount),
+                currentBalance: roundTwo(createLoanDto.totalToPay || createLoanDto.amount),
                 monthlyInterestRate: createLoanDto.monthlyInterestRate || '5',
                 term: createLoanDto.term,
                 modality: createLoanDto.modality,
@@ -90,58 +111,84 @@ let LoansService = class LoansService {
             }
             if (loan.modality === 'quincenas') {
                 const numberOfMonths = loan.term / 2;
-                const totalToPayTheoretical = Math.ceil((loanAmount * monthlyInterestRate * numberOfMonths) + loanAmount);
+                const totalToPayTheoretical = roundTwo((loanAmount * monthlyInterestRate * numberOfMonths) + loanAmount);
                 numPayments = loan.term;
-                expectedAmount = Math.ceil(totalToPayTheoretical / numPayments);
-                totalToPay = expectedAmount * numPayments;
+                expectedAmount = roundTwo(totalToPayTheoretical / numPayments);
+                totalToPay = roundTwo(expectedAmount * numPayments);
             }
             else {
-                const totalToPayTheoretical = Math.ceil((loanAmount * monthlyInterestRate * loan.term) + loanAmount);
+                const totalToPayTheoretical = roundTwo((loanAmount * monthlyInterestRate * loan.term) + loanAmount);
                 numPayments = loan.term;
-                expectedAmount = Math.ceil(totalToPayTheoretical / numPayments);
-                totalToPay = expectedAmount * numPayments;
+                expectedAmount = roundTwo(totalToPayTheoretical / numPayments);
+                totalToPay = roundTwo(expectedAmount * numPayments);
             }
         }
         else if (loan.loanType === 'Indefinido') {
             numPayments = 60;
-            expectedAmount = Math.ceil(loanAmount * monthlyInterestRate);
+            expectedAmount = roundTwo(loanAmount * monthlyInterestRate);
         }
         else {
             throw new common_1.BadRequestException('Tipo de préstamo no soportado para la generación de pagos.');
         }
-        const currentDueDate = new Date(loan.loanDate);
-        let lastDueDateWas15th = false;
-        for (let i = 0; i < numPayments; i++) {
-            let dueDate;
-            if (loan.loanType === 'Cápsula' && loan.modality === 'quincenas') {
-                if (i === 0) {
-                    if (currentDueDate.getDate() <= 15) {
-                        dueDate = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth(), 15);
-                        lastDueDateWas15th = true;
-                    }
-                    else {
-                        dueDate = getLastDayOfMonth(currentDueDate);
-                        lastDueDateWas15th = false;
-                    }
-                }
-                else {
-                    if (lastDueDateWas15th) {
-                        dueDate = getLastDayOfMonth(currentDueDate);
-                        lastDueDateWas15th = false;
-                    }
-                    else {
-                        currentDueDate.setMonth(currentDueDate.getMonth() + 1);
-                        dueDate = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth(), 15);
-                        lastDueDateWas15th = true;
-                    }
-                }
+        const loanDate = new Date(loan.loanDate);
+        const lDay = loanDate.getDate();
+        const lMonth = loanDate.getMonth();
+        const lYear = loanDate.getFullYear();
+        const dueDates = [];
+        if (loan.modality === 'quincenas') {
+            let curMonth, curYear, nextIs15;
+            if (lDay <= 15) {
+                curMonth = lMonth;
+                curYear = lYear;
+                nextIs15 = false;
             }
             else {
-                if (i > 0) {
-                    currentDueDate.setMonth(currentDueDate.getMonth() + 1);
+                curMonth = lMonth + 1;
+                curYear = lYear;
+                if (curMonth > 11) {
+                    curMonth = 0;
+                    curYear++;
                 }
-                dueDate = getLastDayOfMonth(currentDueDate);
+                nextIs15 = true;
             }
+            for (let i = 0; i < numPayments; i++) {
+                if (nextIs15) {
+                    dueDates.push(new Date(curYear, curMonth, 15));
+                    nextIs15 = false;
+                }
+                else {
+                    dueDates.push(new Date(curYear, curMonth + 1, 0));
+                    nextIs15 = true;
+                    curMonth++;
+                    if (curMonth > 11) {
+                        curMonth = 0;
+                        curYear++;
+                    }
+                }
+            }
+        }
+        else {
+            let startMonth, startYear;
+            if (lDay <= 15) {
+                startMonth = lMonth;
+                startYear = lYear;
+            }
+            else {
+                startMonth = lMonth + 1;
+                startYear = lYear;
+                if (startMonth > 11) {
+                    startMonth = 0;
+                    startYear++;
+                }
+            }
+            for (let i = 0; i < numPayments; i++) {
+                const totalMonths = startMonth + i;
+                const yr = startYear + Math.floor(totalMonths / 12);
+                const mo = totalMonths % 12;
+                dueDates.push(new Date(yr, mo + 1, 0));
+            }
+        }
+        for (const dueDate of dueDates) {
             const monthlyPayment = manager.create(monthly_payment_entity_1.MonthlyPayment, {
                 loan,
                 dueDate,
@@ -157,20 +204,6 @@ let LoansService = class LoansService {
             relations: ['customer', 'payments', 'monthlyPayments'],
             order: { loanDate: 'DESC' },
         });
-        for (const loan of loans) {
-            if (loan.status === loan_entity_1.LoanStatus.ACTIVE) {
-                const now = new Date();
-                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                const overduePayments = loan.monthlyPayments.filter((mp) => {
-                    const dueDate = new Date(mp.dueDate);
-                    const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-                    return !mp.isPaid && dueDateOnly < today;
-                });
-                if (overduePayments.length > 0) {
-                    loan.status = loan_entity_1.LoanStatus.OVERDUE;
-                }
-            }
-        }
         return loans;
     }
     async getLoanDetails(loanId) {
@@ -183,29 +216,62 @@ let LoansService = class LoansService {
         }
         let accumulatedOverdueAmount = 0;
         let overduePeriodsCount = 0;
-        if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        let overduePeriodsUnit = loan.modality === 'quincenas' ? 'quincenas' : 'meses';
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        if (loan.loanType === 'Indefinido') {
+            const ref = loan.lastPaymentDate
+                ? new Date(loan.lastPaymentDate)
+                : new Date(loan.loanDate);
+            overduePeriodsCount = countOverdueMonths(ref, today);
+            overduePeriodsUnit = 'meses';
+            const rate = parseFloat(loan.monthlyInterestRate) / 100;
+            accumulatedOverdueAmount = overduePeriodsCount * Math.ceil(Number(loan.amount) * rate);
+        }
+        else if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
             for (const mp of loan.monthlyPayments) {
                 const dueDate = new Date(mp.dueDate);
                 const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
                 if (!mp.isPaid && dueDateOnly < today) {
-                    accumulatedOverdueAmount = accumulatedOverdueAmount + mp.expectedAmount;
+                    accumulatedOverdueAmount += Number(mp.expectedAmount || 0);
                     overduePeriodsCount++;
                 }
             }
+            if (overduePeriodsCount === 0 && loan.status !== loan_entity_1.LoanStatus.PAID && loan.status !== loan_entity_1.LoanStatus.CANCELLED) {
+                const ref = loan.lastPaymentDate
+                    ? new Date(loan.lastPaymentDate)
+                    : new Date(loan.loanDate);
+                overduePeriodsCount = countOverdueMonths(ref, today);
+                overduePeriodsUnit = 'meses';
+                const rate = parseFloat(loan.monthlyInterestRate) / 100;
+                const periodRate = loan.modality === 'quincenas' ? rate / 2 : rate;
+                accumulatedOverdueAmount = overduePeriodsCount * Math.ceil(Number(loan.currentBalance) * periodRate);
+            }
         }
-        let totalExtraChargesPaid = 0;
+        const totalExtraChargesPaid = 0;
+        let monthlyPaymentAmount;
+        const rate = parseFloat(loan.monthlyInterestRate) / 100;
+        if (loan.loanType === 'Cápsula' && loan.term) {
+            const periodRate = loan.modality === 'quincenas' ? rate / 2 : rate;
+            const totalInterest = roundTwo(Number(loan.amount) * periodRate * loan.term);
+            monthlyPaymentAmount = roundTwo((Number(loan.amount) + totalInterest) / loan.term);
+        }
+        else if (loan.loanType === 'Cápsula' && !loan.term && loan.monthlyPayments?.length > 0) {
+            monthlyPaymentAmount = Number(loan.monthlyPayments[0].expectedAmount || 0);
+        }
+        else {
+            monthlyPaymentAmount = roundTwo(Number(loan.amount) * rate);
+        }
         return {
             ...loan,
-            monthlyPaymentAmount: Math.ceil(loan.currentBalance * (parseFloat(loan.monthlyInterestRate) / 100)),
+            monthlyPaymentAmount,
             paymentHistory: loan.monthlyPayments
                 .filter((mp) => mp.isPaid)
                 .sort((a, b) => new Date(b.paymentDate).getTime() -
                 new Date(a.paymentDate).getTime()),
             accumulatedOverdueAmount: accumulatedOverdueAmount,
             overduePeriodsCount: overduePeriodsCount,
-            overduePeriodsUnit: loan.modality === 'quincenas' ? 'quincenas' : 'meses',
+            overduePeriodsUnit: overduePeriodsUnit,
             totalExtraChargesPaid: totalExtraChargesPaid,
         };
     }
@@ -227,19 +293,41 @@ let LoansService = class LoansService {
             loans: overdueLoans,
         };
     }
+    async updateOverdueStatuses() {
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+        const paidResult = await this.loansRepository.query(`UPDATE loans SET status = 'PAID', updated_at = NOW()
+       WHERE status IN ('ACTIVE', 'OVERDUE')
+       AND (current_balance <= 0 OR current_balance IS NULL AND total_capital_paid >= amount)`);
+        const markedPaid = paidResult[1] || 0;
+        const overdueResult = await this.loansRepository.query(`UPDATE loans SET status = 'OVERDUE', updated_at = NOW()
+       WHERE status = 'ACTIVE'
+       AND current_balance > 0
+       AND (
+         (last_payment_date IS NULL AND loan_date < $1)
+         OR (last_payment_date IS NOT NULL AND last_payment_date < $1)
+       )`, [thirtyDaysAgoStr]);
+        const markedOverdue = overdueResult[1] || 0;
+        const activeResult = await this.loansRepository.query(`UPDATE loans SET status = 'ACTIVE', updated_at = NOW()
+       WHERE status = 'OVERDUE'
+       AND current_balance > 0
+       AND last_payment_date >= $1`, [thirtyDaysAgoStr]);
+        const restoredActive = activeResult[1] || 0;
+        return { markedOverdue, restoredActive, markedPaid };
+    }
     async getCompletedLoans() {
         try {
             const completedLoans = await this.loansRepository.find({
-                where: {
-                    status: loan_entity_1.LoanStatus.PAID,
-                },
+                where: [
+                    { status: loan_entity_1.LoanStatus.PAID },
+                    { status: loan_entity_1.LoanStatus.CANCELLED },
+                ],
                 relations: ['customer'],
                 order: { loanDate: 'DESC' },
             });
             return completedLoans;
         }
         catch (error) {
-            console.error('Error in getCompletedLoans:', error);
             throw error;
         }
     }

@@ -6,12 +6,22 @@ import { useContainer } from 'class-validator';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import helmet from 'helmet';
+import { existsSync, mkdirSync } from 'fs';
+import { join } from 'path';
 
 async function bootstrap() {
+  // Crear directorio de uploads si no existe
+  const uploadsDir = join(process.cwd(), 'uploads', 'profiles');
+  if (!existsSync(uploadsDir)) {
+    mkdirSync(uploadsDir, { recursive: true });
+  }
+
   const app = await NestFactory.create(AppModule, { cors: false });
 
   // Helmet — headers de seguridad (CSP, X-Frame-Options, etc.)
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // class-validator con el contenedor de Nest
   useContainer(app.select(AppModule), { fallbackOnErrors: true });

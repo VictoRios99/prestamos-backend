@@ -22,6 +22,9 @@ const monthly_payment_entity_1 = require("../loans/entities/monthly-payment.enti
 const cash_movements_service_1 = require("../cash-movements/cash-movements.service");
 const cash_movement_entity_1 = require("../cash-movements/entities/cash-movement.entity");
 const loans_service_1 = require("../loans/loans.service");
+function roundTwo(v) {
+    return Math.round(v * 100) / 100;
+}
 let PaymentsService = class PaymentsService {
     paymentsRepository;
     loansService;
@@ -32,6 +35,13 @@ let PaymentsService = class PaymentsService {
         this.loansService = loansService;
         this.cashMovementsService = cashMovementsService;
         this.entityManager = entityManager;
+    }
+    parseLocalDate(d) {
+        if (typeof d === 'string') {
+            const [y, m, day] = d.split('-').map(Number);
+            return new Date(y, m - 1, day);
+        }
+        return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
     }
     async create(createPaymentDto, userId) {
         const { loanId, paymentDate, paymentMethod, notes, overduePeriodsPaid, lateInterest } = createPaymentDto;
@@ -54,7 +64,8 @@ let PaymentsService = class PaymentsService {
                 if (loan.status !== loan_entity_1.LoanStatus.ACTIVE && loan.status !== loan_entity_1.LoanStatus.OVERDUE) {
                     throw new common_1.BadRequestException('No se puede pagar un préstamo inactivo o pagado');
                 }
-                const currentBalance = loan.currentBalance;
+                const currentBalance = Number(loan.currentBalance);
+                const loanAmount = Number(loan.amount);
                 if (currentBalance <= 0) {
                     throw new common_1.BadRequestException('El préstamo ya está pagado completamente');
                 }
@@ -63,8 +74,8 @@ let PaymentsService = class PaymentsService {
                         throw new common_1.BadRequestException('El pago de periodos vencidos solo está disponible para préstamos tipo Cápsula.');
                     }
                     const overdueMonthlyPayments = loan.monthlyPayments
-                        .filter(mp => !mp.isPaid && new Date(mp.dueDate) < new Date())
-                        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+                        .filter(mp => !mp.isPaid && this.parseLocalDate(mp.dueDate) < new Date())
+                        .sort((a, b) => this.parseLocalDate(a.dueDate).getTime() - this.parseLocalDate(b.dueDate).getTime());
                     if (overduePeriodsPaid > overdueMonthlyPayments.length) {
                         throw new common_1.BadRequestException('El número de periodos a pagar excede los periodos vencidos.');
                     }
@@ -73,14 +84,14 @@ let PaymentsService = class PaymentsService {
                     let totalInterestPaidFromOverdue = 0;
                     for (let i = 0; i < overduePeriodsPaid; i++) {
                         const mp = overdueMonthlyPayments[i];
-                        const expectedAmount = mp.expectedAmount;
+                        const expectedAmount = Number(mp.expectedAmount);
                         totalAmountPaid = totalAmountPaid + expectedAmount;
                         const monthlyInterestRate = parseFloat(loan.monthlyInterestRate) / 100;
                         let interestRateForPeriod = monthlyInterestRate;
                         if (loan.modality === 'quincenas') {
                             interestRateForPeriod = monthlyInterestRate / 2;
                         }
-                        const interestForPeriod = Math.ceil(loan.amount * interestRateForPeriod);
+                        const interestForPeriod = roundTwo(loanAmount * interestRateForPeriod);
                         let interestPaidForPeriod;
                         let capitalPaidForPeriod;
                         if (expectedAmount > interestForPeriod) {
@@ -95,7 +106,7 @@ let PaymentsService = class PaymentsService {
                         totalCapitalPaidFromOverdue = totalCapitalPaidFromOverdue + capitalPaidForPeriod;
                         mp.isPaid = true;
                         mp.paidAmount = expectedAmount;
-                        mp.paymentDate = new Date(paymentDate);
+                        mp.paymentDate = this.parseLocalDate(paymentDate);
                         mp.interestPaid = interestPaidForPeriod;
                         mp.capitalPaid = capitalPaidForPeriod;
                         await transactionalEntityManager.save(monthly_payment_entity_1.MonthlyPayment, mp);
@@ -112,12 +123,24 @@ let PaymentsService = class PaymentsService {
                         if (totalPaymentReceived <= 0) {
                             throw new common_1.BadRequestException('El monto del pago debe ser mayor a 0');
                         }
+                        if (loan.loanType === 'Cápsula' && loan.monthlyPayments) {
+                            const nextUnpaidForValidation = loan.monthlyPayments
+                                .filter(mp => !mp.isPaid)
+                                .sort((a, b) => this.parseLocalDate(a.dueDate).getTime() - this.parseLocalDate(b.dueDate).getTime())[0];
+                            const minPayment = nextUnpaidForValidation
+                                ? Math.min(Number(nextUnpaidForValidation.expectedAmount), currentBalance)
+                                : currentBalance;
+                            if (totalPaymentReceived < minPayment) {
+                                throw new common_1.BadRequestException(`No se permiten pagos parciales en préstamos tipo Cápsula. El monto mínimo es $${minPayment.toLocaleString('es-MX')}.`);
+                            }
+                        }
                         const monthlyInterestRate = parseFloat(loan.monthlyInterestRate) / 100;
                         let interestRateForPeriod = monthlyInterestRate;
                         if (loan.loanType === 'Cápsula' && loan.modality === 'quincenas') {
                             interestRateForPeriod = monthlyInterestRate / 2;
                         }
-                        const interestForPeriod = Math.ceil(loan.amount * interestRateForPeriod);
+                        const interestBase = loan.loanType === 'Cápsula' ? loanAmount : currentBalance;
+                        const interestForPeriod = roundTwo(interestBase * interestRateForPeriod);
                         if (totalPaymentReceived > interestForPeriod) {
                             actualInterestPaid = interestForPeriod;
                             actualCapitalPaid = totalPaymentReceived - interestForPeriod;
@@ -129,8 +152,26 @@ let PaymentsService = class PaymentsService {
                         if (actualCapitalPaid > currentBalance) {
                             actualCapitalPaid = currentBalance;
                         }
-                        loan.currentBalance = currentBalance - totalPaymentReceived;
+                        if (loan.loanType === 'Cápsula') {
+                            loan.currentBalance = currentBalance - totalPaymentReceived;
+                        }
+                        else {
+                            loan.currentBalance = currentBalance - actualCapitalPaid;
+                        }
                         loan.monthsPaid = (loan.monthsPaid || 0) + 1;
+                        if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
+                            const nextUnpaid = loan.monthlyPayments
+                                .filter(mp => !mp.isPaid)
+                                .sort((a, b) => this.parseLocalDate(a.dueDate).getTime() - this.parseLocalDate(b.dueDate).getTime())[0];
+                            if (nextUnpaid) {
+                                nextUnpaid.isPaid = true;
+                                nextUnpaid.paidAmount = totalPaymentReceived;
+                                nextUnpaid.paymentDate = this.parseLocalDate(paymentDate);
+                                nextUnpaid.interestPaid = actualInterestPaid;
+                                nextUnpaid.capitalPaid = actualCapitalPaid;
+                                await transactionalEntityManager.save(monthly_payment_entity_1.MonthlyPayment, nextUnpaid);
+                            }
+                        }
                     }
                     else if ((createPaymentDto.capitalAmount !== undefined && createPaymentDto.capitalAmount !== null) || (createPaymentDto.interestAmount !== undefined && createPaymentDto.interestAmount !== null)) {
                         actualCapitalPaid = createPaymentDto.capitalAmount || 0;
@@ -148,12 +189,15 @@ let PaymentsService = class PaymentsService {
                         throw new common_1.BadRequestException('Debe proporcionar un monto de pago válido.');
                     }
                 }
-                loan.totalInterestPaid = loan.totalInterestPaid + actualInterestPaid;
-                loan.totalCapitalPaid = loan.totalCapitalPaid + actualCapitalPaid;
-                loan.lastPaymentDate = new Date(paymentDate);
+                loan.totalInterestPaid = Number(loan.totalInterestPaid) + actualInterestPaid;
+                loan.totalCapitalPaid = Number(loan.totalCapitalPaid) + actualCapitalPaid;
+                loan.lastPaymentDate = this.parseLocalDate(paymentDate);
                 if (loan.currentBalance <= 0) {
                     loan.currentBalance = 0;
                     loan.status = loan_entity_1.LoanStatus.PAID;
+                }
+                else if (loan.status === loan_entity_1.LoanStatus.OVERDUE) {
+                    loan.status = loan_entity_1.LoanStatus.ACTIVE;
                 }
                 await transactionalEntityManager.save(loan_entity_1.Loan, loan);
                 let paymentType = payment_entity_1.PaymentType.INTEREST;
@@ -166,7 +210,7 @@ let PaymentsService = class PaymentsService {
                 const receiptNumber = await this.generateReceiptNumber(transactionalEntityManager);
                 const payment = transactionalEntityManager.create(payment_entity_1.Payment, {
                     loan,
-                    paymentDate: new Date(paymentDate),
+                    paymentDate: this.parseLocalDate(paymentDate),
                     amount: totalPaymentReceived,
                     paymentType,
                     paymentMethod: paymentMethod ?? 'CASH',
@@ -185,10 +229,10 @@ let PaymentsService = class PaymentsService {
             });
         }
         catch (error) {
-            console.log(error);
             if (error instanceof common_1.NotFoundException || error instanceof common_1.BadRequestException) {
                 throw error;
             }
+            console.error('Payment processing error:', error);
             throw new common_1.InternalServerErrorException('Error al procesar el pago. Por favor, intente de nuevo más tarde.');
         }
     }
@@ -249,7 +293,7 @@ let PaymentsService = class PaymentsService {
             totalCapital: loan.totalCapitalPaid,
             monthsPaid: loan.monthsPaid,
             remainingBalance: loan.currentBalance,
-            monthlyPayment: Math.ceil(loan.currentBalance * (parseFloat(loan.monthlyInterestRate) / 100)),
+            monthlyPayment: roundTwo(loan.currentBalance * (parseFloat(loan.monthlyInterestRate) / 100)),
         };
         return { payments, summary };
     }
@@ -280,7 +324,12 @@ let PaymentsService = class PaymentsService {
             }
             const paymentCapitalPaid = payment.capitalPaid;
             const paymentInterestPaid = payment.interestPaid;
-            loan.currentBalance = loan.currentBalance + paymentCapitalPaid;
+            if (loan.loanType === 'Cápsula') {
+                loan.currentBalance = loan.currentBalance + payment.amount;
+            }
+            else {
+                loan.currentBalance = loan.currentBalance + paymentCapitalPaid;
+            }
             loan.totalInterestPaid = loan.totalInterestPaid - paymentInterestPaid;
             loan.totalCapitalPaid = loan.totalCapitalPaid - paymentCapitalPaid;
             if (loan.status === loan_entity_1.LoanStatus.PAID) {

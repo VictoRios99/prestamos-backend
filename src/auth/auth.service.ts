@@ -14,42 +14,39 @@ export class AuthService {
   ) {}
 
   async validateUser(username: string, password: string): Promise<any> {
-    try {
-      const user = await this.usersRepository.findOne({
-        where: { username },
-      });
+    const user = await this.usersRepository.findOne({
+      where: { username },
+    });
 
-      if (user && (await bcrypt.compare(password, user.password))) {
-        const { password, ...result } = user;
-        return result;
-      }
-      return null;
-    } catch {
-      return null;
+    if (user && (await bcrypt.compare(password, user.password))) {
+      const { password: _, ...result } = user;
+      return result;
     }
+    return null;
   }
 
   async login(username: string, password: string) {
-    try {
-      const user = await this.validateUser(username, password);
-      if (!user) {
-        throw new UnauthorizedException('Credenciales inválidas');
-      }
-
-      const payload = { username: user.username, sub: user.id, role: user.role };
-      return {
-        access_token: this.jwtService.sign(payload),
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          fullName: user.fullName,
-          role: user.role,
-          isActive: user.isActive,
-        },
-      };
-    } catch {
-      throw new UnauthorizedException('Ocurrió un error durante el inicio de sesión.');
+    const user = await this.validateUser(username, password);
+    if (!user) {
+      throw new UnauthorizedException('Credenciales inválidas');
     }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('La cuenta está desactivada');
+    }
+
+    const payload = { username: user.username, sub: user.id, role: user.role };
+    return {
+      access_token: this.jwtService.sign(payload),
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        isActive: user.isActive,
+        profilePhoto: user.profilePhoto,
+      },
+    };
   }
 }

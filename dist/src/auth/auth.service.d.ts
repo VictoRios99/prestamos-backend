@@ -15,6 +15,7 @@ export declare class AuthService {
             fullName: any;
             role: any;
             isActive: any;
+            profilePhoto: any;
         };
     }>;
 }

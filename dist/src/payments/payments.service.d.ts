@@ -10,6 +10,7 @@ export declare class PaymentsService {
     private readonly cashMovementsService;
     private readonly entityManager;
     constructor(paymentsRepository: Repository<Payment>, loansService: LoansService, cashMovementsService: CashMovementsService, entityManager: EntityManager);
+    private parseLocalDate;
     create(createPaymentDto: CreatePaymentDto, userId: number): Promise<Payment>;
     private generateReceiptNumber;
     findAll(): Promise<Payment[]>;

@@ -9,6 +9,7 @@ export declare class ReportsController {
     constructor(loansService: LoansService, paymentsService: PaymentsService, excelExportService: ExcelExportService);
     exportLoans(res: Response): Promise<void>;
     exportPayments(res: Response, startDate?: string, endDate?: string, reportType?: 'past' | 'all'): Promise<void>;
+    exportOverdueLoans(res: Response): Promise<void>;
     getDashboardReport(): Promise<{
         totalLoans: number;
         totalLoaned: number;

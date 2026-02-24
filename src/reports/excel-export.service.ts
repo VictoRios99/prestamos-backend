@@ -261,9 +261,9 @@ export class ExcelExportService {
       overdueLoans,
       capitalInTransit,
       averagePayment:
-        totalPayments > 0 ? Math.ceil(totalAmount / totalPayments) : 0,
+        totalPayments > 0 ? Math.round((totalAmount / totalPayments) * 100) / 100 : 0,
       monthlyInterestRate:
-        totalAmount > 0 ? Math.ceil((totalInterest / totalAmount) * 100) : 0,
+        totalAmount > 0 ? Math.round((totalInterest / totalAmount) * 100 * 100) / 100 : 0,
     };
   }
 
