@@ -9,6 +9,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { ActivityService } from '../activity/activity.service';
 import { ActivityAction } from '../activity/entities/activity-log.entity';
+import { getClientIp } from '../common/utils/get-client-ip';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.SUPER_ADMIN)
@@ -33,7 +34,7 @@ export class ReportsController {
         userId: user.userId,
         userName: user.fullName || user.username,
         details: { report: 'prestamos' },
-        ipAddress: req.ip,
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
       });
 
@@ -83,7 +84,7 @@ export class ReportsController {
         userId: user.userId,
         userName: user.fullName || user.username,
         details: { report: 'pagos', startDate, endDate, reportType },
-        ipAddress: req.ip,
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
       });
 
@@ -112,7 +113,7 @@ export class ReportsController {
         userId: user.userId,
         userName: user.fullName || user.username,
         details: { report: 'prestamos-vencidos' },
-        ipAddress: req.ip,
+        ipAddress: getClientIp(req),
         userAgent: req.headers['user-agent'],
       });
 

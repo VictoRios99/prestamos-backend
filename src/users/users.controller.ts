@@ -24,6 +24,7 @@ import { multerPhotoConfig } from './multer-photo.config';
 import { ActivityService } from '../activity/activity.service';
 import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
+import { getClientIp } from '../common/utils/get-client-ip';
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
@@ -68,7 +69,7 @@ export class UsersController {
       userName: user.fullName || user.username,
       entityType: 'user',
       entityId: userId,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
 

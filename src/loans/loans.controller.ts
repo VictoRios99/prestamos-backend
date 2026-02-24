@@ -8,6 +8,7 @@ import { UserRole } from '../users/entities/user.entity';
 import { ActivityService } from '../activity/activity.service';
 import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
+import { getClientIp } from '../common/utils/get-client-ip';
 
 @UseGuards(JwtAuthGuard)
 @Controller('loans')
@@ -30,7 +31,7 @@ export class LoansController {
       entityType: 'loan',
       entityId: loan.id,
       details: { amount: createLoanDto.amount, loanType: createLoanDto.loanType },
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
     return loan;
@@ -73,7 +74,7 @@ export class LoansController {
       userName: user.fullName || user.username,
       entityType: 'loan',
       entityId: +id,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
     return result;

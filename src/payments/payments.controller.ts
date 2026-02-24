@@ -17,6 +17,7 @@ import { UserRole } from '../users/entities/user.entity';
 import { ActivityService } from '../activity/activity.service';
 import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { Request } from 'express';
+import { getClientIp } from '../common/utils/get-client-ip';
 
 @UseGuards(JwtAuthGuard)
 @Controller('payments')
@@ -39,7 +40,7 @@ export class PaymentsController {
       entityType: 'payment',
       entityId: payment.id,
       details: { amount: createPaymentDto.amount, loanId: createPaymentDto.loanId },
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
     return payment;
@@ -77,7 +78,7 @@ export class PaymentsController {
       userName: user.fullName || user.username,
       entityType: 'payment',
       entityId: +id,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
     return result;

@@ -6,6 +6,7 @@ import { ActivityService } from '../activity/activity.service';
 import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Request } from 'express';
+import { getClientIp } from '../common/utils/get-client-ip';
 
 @Controller('auth')
 export class AuthController {
@@ -25,7 +26,7 @@ export class AuthController {
       action: ActivityAction.LOGIN,
       userId: result.user.id,
       userName: result.user.fullName,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
     return result;
@@ -39,7 +40,7 @@ export class AuthController {
       action: ActivityAction.LOGOUT,
       userId: user.userId,
       userName: user.fullName || user.username,
-      ipAddress: req.ip,
+      ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'],
     });
     return { message: 'Sesion cerrada' };
