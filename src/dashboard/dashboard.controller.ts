@@ -10,7 +10,7 @@ import { Request } from 'express';
 import { getClientIp } from '../common/utils/get-client-ip';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN, UserRole.AUDITOR)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AUDITOR)
 @Controller('dashboard')
 export class DashboardController {
   constructor(

@@ -10,6 +10,7 @@ import { Exclude } from 'class-transformer';
 
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
+  ADMIN = 'ADMIN',
   OPERATOR = 'OPERATOR',
   AUDITOR = 'AUDITOR',
 }

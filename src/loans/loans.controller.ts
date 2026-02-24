@@ -20,7 +20,7 @@ export class LoansController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   async create(@Body() createLoanDto: CreateLoanDto, @Req() req: Request) {
     const user = req.user as any;
     const loan = await this.loansService.create(createLoanDto, user.userId);
@@ -64,7 +64,7 @@ export class LoansController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async remove(@Param('id') id: string, @Req() req: Request) {
     const user = req.user as any;
     const result = await this.loansService.remove(+id);

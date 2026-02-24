@@ -79,13 +79,13 @@ export class UsersController {
   // ── Rutas admin-only ──
 
   @Get()
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async findAll() {
     return this.usersService.findAll();
   }
 
   @Get(':id')
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async findOne(@Param('id') id: string) {
     return this.usersService.findById(+id);
   }

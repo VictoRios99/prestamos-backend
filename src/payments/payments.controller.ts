@@ -29,7 +29,7 @@ export class PaymentsController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   async create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
     const user = req.user as any;
     const payment = await this.paymentsService.create(createPaymentDto, user.userId);
@@ -68,7 +68,7 @@ export class PaymentsController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async remove(@Param('id') id: string, @Req() req: Request) {
     const user = req.user as any;
     const result = await this.paymentsService.remove(+id);

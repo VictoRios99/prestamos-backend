@@ -35,7 +35,7 @@ export class CustomersController {
 
   @Post()
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   async create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: Request) {
     const user = req.user as any;
     const customer = await this.customersService.create(createCustomerDto, user.userId);
@@ -64,7 +64,7 @@ export class CustomersController {
 
   @Put(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   async update(
     @Param('id') id: string,
     @Body() updateCustomerDto: UpdateCustomerDto,
@@ -86,7 +86,7 @@ export class CustomersController {
 
   @Delete(':id')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
   async remove(@Param('id') id: string, @Req() req: Request) {
     const user = req.user as any;
     const result = await this.customersService.remove(+id);
@@ -104,7 +104,7 @@ export class CustomersController {
 
   @Post('bulk-upload')
   @UseGuards(RolesGuard)
-  @Roles(UserRole.SUPER_ADMIN, UserRole.OPERATOR)
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   @UseInterceptors(FileInterceptor('file'))
   async bulkUpload(@UploadedFile() file: any) {
     if (!file) {

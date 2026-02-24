@@ -7,7 +7,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
 @Controller('activity')
 export class ActivityController {
   constructor(private readonly activityService: ActivityService) {}

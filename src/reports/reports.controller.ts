@@ -12,7 +12,7 @@ import { ActivityAction } from '../activity/entities/activity-log.entity';
 import { getClientIp } from '../common/utils/get-client-ip';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.SUPER_ADMIN)
+@Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
 @Controller('reports')
 export class ReportsController {
   constructor(
