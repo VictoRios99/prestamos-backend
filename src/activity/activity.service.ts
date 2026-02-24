@@ -52,6 +52,34 @@ export class ActivityService {
     }
   }
 
+  async deleteOne(id: number): Promise<void> {
+    await this.activityRepo.delete(id);
+  }
+
+  async deleteBulk(filters: {
+    action?: ActivityAction;
+    period?: 'today' | '7d' | '30d';
+  }): Promise<number> {
+    const qb = this.activityRepo.createQueryBuilder('a').delete().from(ActivityLog);
+    if (filters.action) {
+      qb.andWhere('action = :action', { action: filters.action });
+    }
+    if (filters.period) {
+      const now = new Date();
+      let since: Date;
+      if (filters.period === 'today') {
+        since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      } else if (filters.period === '7d') {
+        since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      } else {
+        since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+      qb.andWhere('created_at >= :since', { since });
+    }
+    const result = await qb.execute();
+    return result.affected ?? 0;
+  }
+
   async findAll(filters: FindAllFilters) {
     const page = filters.page ?? 1;
     const limit = filters.limit ?? 30;

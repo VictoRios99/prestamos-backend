@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Delete, Param, Query, UseGuards } from '@nestjs/common';
 import { ActivityService, FindAllFilters } from './activity.service';
 import { ActivityAction } from './entities/activity-log.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -34,5 +34,20 @@ export class ActivityController {
       limit: limit ? +limit : 30,
     };
     return this.activityService.findAll(filters);
+  }
+
+  @Delete('bulk')
+  async deleteBulk(
+    @Query('action') action?: ActivityAction,
+    @Query('period') period?: 'today' | '7d' | '30d',
+  ) {
+    const deleted = await this.activityService.deleteBulk({ action, period });
+    return { deleted };
+  }
+
+  @Delete(':id')
+  async deleteOne(@Param('id') id: string) {
+    await this.activityService.deleteOne(+id);
+    return { deleted: true };
   }
 }
