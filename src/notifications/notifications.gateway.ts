@@ -9,6 +9,10 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, MoreThanOrEqual } from 'typeorm';
+import { ActivityLog, ActivityAction } from '../activity/entities/activity-log.entity';
+import { reverseGeocode } from '../common/utils/reverse-geocode';
 
 interface ConnectedUser {
   socketId: string;
@@ -41,7 +45,11 @@ export class NotificationsGateway
 
   private connectedUsers = new Map<string, ConnectedUser>();
 
-  constructor(private jwtService: JwtService) {}
+  constructor(
+    private jwtService: JwtService,
+    @InjectRepository(ActivityLog)
+    private activityLogRepo: Repository<ActivityLog>,
+  ) {}
 
   handleConnection(client: Socket) {
     try {
@@ -69,6 +77,11 @@ export class NotificationsGateway
       };
       this.connectedUsers.set(client.id, user);
       this.emitPresenceUpdate();
+
+      // Si el usuario se conecta con GPS, parchear el LOGIN reciente
+      if (user.browserLocation) {
+        this.patchRecentLoginLocation(user.userId, user.browserLocation);
+      }
     } catch {
       client.disconnect();
     }
@@ -87,6 +100,23 @@ export class NotificationsGateway
     const user = this.connectedUsers.get(client.id);
     if (user) {
       user.currentPage = data.page;
+      user.lastActivity = new Date();
+      this.emitPresenceUpdate();
+    }
+  }
+
+  @SubscribeMessage('updateLocation')
+  handleUpdateLocation(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { lat: number; lng: number; accuracy: number },
+  ) {
+    const user = this.connectedUsers.get(client.id);
+    if (user && typeof data?.lat === 'number' && typeof data?.lng === 'number') {
+      user.browserLocation = {
+        lat: data.lat,
+        lng: data.lng,
+        accuracy: data.accuracy || 0,
+      };
       user.lastActivity = new Date();
       this.emitPresenceUpdate();
     }
@@ -161,5 +191,39 @@ export class NotificationsGateway
   // Emitir actualizacion de dashboard
   emitDashboardUpdate(data: any) {
     this.server.emit('dashboardUpdate', data);
+  }
+
+  /**
+   * Parchea el LOGIN mas reciente (ultimos 60s) con ubicacion GPS.
+   * Se llama cuando el WS se conecta con GPS despues del login.
+   */
+  private async patchRecentLoginLocation(
+    userId: number,
+    loc: { lat: number; lng: number },
+  ) {
+    try {
+      const sixtySecsAgo = new Date(Date.now() - 60000);
+      const recent = await this.activityLogRepo.findOne({
+        where: {
+          userId,
+          action: ActivityAction.LOGIN,
+          createdAt: MoreThanOrEqual(sixtySecsAgo),
+        },
+        order: { createdAt: 'DESC' },
+      });
+      if (recent && !recent.details?.location) {
+        const location = await reverseGeocode(loc.lat, loc.lng);
+        if (location) {
+          recent.details = {
+            ...recent.details,
+            location,
+            locationSource: 'gps',
+          };
+          await this.activityLogRepo.save(recent);
+        }
+      }
+    } catch (err) {
+      console.error('patchRecentLoginLocation error:', err);
+    }
   }
 }

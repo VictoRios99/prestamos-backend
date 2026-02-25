@@ -92,13 +92,36 @@ export class UsersController {
 
   @Post()
   @Roles(UserRole.SUPER_ADMIN)
-  async create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  async create(@Body() createUserDto: CreateUserDto, @Req() req: Request) {
+    const user = req.user as any;
+    const created = await this.usersService.create(createUserDto);
+    this.activityService.log({
+      action: ActivityAction.CREATE_USER,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'user',
+      entityId: created.id,
+      details: { username: createUserDto.username, role: createUserDto.role },
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    });
+    return created;
   }
 
   @Put(':id')
   @Roles(UserRole.SUPER_ADMIN)
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(+id, updateUserDto);
+  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto, @Req() req: Request) {
+    const user = req.user as any;
+    const result = await this.usersService.update(+id, updateUserDto);
+    this.activityService.log({
+      action: ActivityAction.UPDATE_USER,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'user',
+      entityId: +id,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    });
+    return result;
   }
 }

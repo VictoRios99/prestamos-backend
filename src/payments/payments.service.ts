@@ -227,6 +227,7 @@ export class PaymentsService {
               }
               // Modo split: siempre restar solo capital del balance
               loan.currentBalance = currentBalance - actualCapitalPaid;
+              loan.monthsPaid = (loan.monthsPaid || 0) + 1;
             } else {
               throw new BadRequestException('Debe proporcionar un monto de pago válido.');
             }

@@ -106,7 +106,7 @@ export class CustomersController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   @UseInterceptors(FileInterceptor('file'))
-  async bulkUpload(@UploadedFile() file: any) {
+  async bulkUpload(@UploadedFile() file: any, @Req() req: Request) {
     if (!file) {
       throw new BadRequestException('No se ha proporcionado ningun archivo');
     }
@@ -117,6 +117,17 @@ export class CustomersController {
       );
     }
 
-    return this.customersService.bulkUpload(file.buffer);
+    const result = await this.customersService.bulkUpload(file.buffer);
+    const user = req.user as any;
+    this.activityService.log({
+      action: ActivityAction.BULK_UPLOAD,
+      userId: user.userId,
+      userName: user.fullName || user.username,
+      entityType: 'customer',
+      details: { filename: file.originalname, count: result?.success ?? 0 },
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'],
+    });
+    return result;
   }
 }
