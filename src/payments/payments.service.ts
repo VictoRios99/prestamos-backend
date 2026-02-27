@@ -30,10 +30,11 @@ export class PaymentsService {
     private readonly entityManager: EntityManager,
   ) {}
 
-  /** Parse a date-only string ('YYYY-MM-DD') into local midnight, avoiding UTC shift */
+  /** Parse a date string ('YYYY-MM-DD' or ISO) into local midnight, avoiding UTC shift */
   private parseLocalDate(d: string | Date): Date {
     if (typeof d === 'string') {
-      const [y, m, day] = d.split('-').map(Number);
+      const dateOnly = d.includes('T') ? d.split('T')[0] : d;
+      const [y, m, day] = dateOnly.split('-').map(Number);
       return new Date(y, m - 1, day);
     }
     return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
