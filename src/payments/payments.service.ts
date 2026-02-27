@@ -416,18 +416,21 @@ export class PaymentsService {
         throw new NotFoundException('Préstamo asociado no encontrado.');
       }
 
-      const paymentCapitalPaid = payment.capitalPaid;
-      const paymentInterestPaid = payment.interestPaid;
+      // Forzar conversión numérica (DB devuelve strings para columnas numeric)
+      const currentBalance = Number(loan.currentBalance);
+      const paymentCapitalPaid = Number(payment.capitalPaid);
+      const paymentInterestPaid = Number(payment.interestPaid);
+      const paymentAmount = Number(payment.amount);
 
       // Cápsula: balance = total a pagar, restaurar monto completo del pago
       // Indefinido: balance = solo capital, restaurar solo capital
       if (loan.loanType === 'Cápsula') {
-        loan.currentBalance = loan.currentBalance + payment.amount;
+        loan.currentBalance = currentBalance + paymentAmount;
       } else {
-        loan.currentBalance = loan.currentBalance + paymentCapitalPaid;
+        loan.currentBalance = currentBalance + paymentCapitalPaid;
       }
-      loan.totalInterestPaid = loan.totalInterestPaid - paymentInterestPaid;
-      loan.totalCapitalPaid = loan.totalCapitalPaid - paymentCapitalPaid;
+      loan.totalInterestPaid = Number(loan.totalInterestPaid) - paymentInterestPaid;
+      loan.totalCapitalPaid = Number(loan.totalCapitalPaid) - paymentCapitalPaid;
 
       if (loan.status === LoanStatus.PAID) {
         loan.status = LoanStatus.ACTIVE;

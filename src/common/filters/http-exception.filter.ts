@@ -27,6 +27,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
           : (errorResponse as any).message || message;
     }
 
+    // Log server errors for debugging
+    if (status >= 500) {
+      console.error(`[ExceptionFilter] ${request.method} ${request.url} → ${status}:`, exception);
+    }
+
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
