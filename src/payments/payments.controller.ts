@@ -33,16 +33,32 @@ export class PaymentsController {
   async create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
     const user = req.user as any;
     const payment = await this.paymentsService.create(createPaymentDto, user.userId);
-    this.activityService.log({
-      action: ActivityAction.CREATE_PAYMENT,
-      userId: user.userId,
-      userName: user.fullName || user.username,
-      entityType: 'payment',
-      entityId: payment.id,
-      details: { amount: createPaymentDto.amount, loanId: createPaymentDto.loanId },
-      ipAddress: getClientIp(req),
-      userAgent: req.headers['user-agent'],
-    });
+    // Fetch full payment with customer for activity log (fire-and-forget)
+    this.paymentsService.findOne(payment.id).then(fp => {
+      const customerName = fp.loan?.customer
+        ? `${fp.loan.customer.firstName} ${fp.loan.customer.lastName}`.trim()
+        : '';
+      this.activityService.log({
+        action: ActivityAction.CREATE_PAYMENT,
+        userId: user.userId,
+        userName: user.fullName || user.username,
+        entityType: 'payment',
+        entityId: payment.id,
+        details: {
+          loanId: createPaymentDto.loanId,
+          customer: customerName,
+          amount: Number(payment.amount),
+          interestPaid: Number(payment.interestPaid),
+          capitalPaid: Number(payment.capitalPaid),
+          receiptNumber: payment.receiptNumber,
+          paymentDate: createPaymentDto.paymentDate,
+          paymentMethod: payment.paymentMethod,
+          loanType: fp.loan?.loanType || '',
+        },
+        ipAddress: getClientIp(req),
+        userAgent: req.headers['user-agent'],
+      });
+    }).catch(() => {});
     return payment;
   }
 
