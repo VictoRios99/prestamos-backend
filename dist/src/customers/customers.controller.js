@@ -81,14 +81,25 @@ let CustomersController = class CustomersController {
         });
         return result;
     }
-    async bulkUpload(file) {
+    async bulkUpload(file, req) {
         if (!file) {
             throw new common_1.BadRequestException('No se ha proporcionado ningun archivo');
         }
         if (!file.originalname.match(/\.(xlsx|xls)$/)) {
             throw new common_1.BadRequestException('Formato de archivo invalido. Solo se permiten archivos Excel (.xlsx, .xls)');
         }
-        return this.customersService.bulkUpload(file.buffer);
+        const result = await this.customersService.bulkUpload(file.buffer);
+        const user = req.user;
+        this.activityService.log({
+            action: activity_log_entity_1.ActivityAction.BULK_UPLOAD,
+            userId: user.userId,
+            userName: user.fullName || user.username,
+            entityType: 'customer',
+            details: { filename: file.originalname, count: result?.success ?? 0 },
+            ipAddress: (0, get_client_ip_1.getClientIp)(req),
+            userAgent: req.headers['user-agent'],
+        });
+        return result;
     }
 };
 exports.CustomersController = CustomersController;
@@ -142,8 +153,9 @@ __decorate([
     (0, roles_decorator_1.Roles)(user_entity_1.UserRole.SUPER_ADMIN, user_entity_1.UserRole.ADMIN, user_entity_1.UserRole.OPERATOR),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file')),
     __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], CustomersController.prototype, "bulkUpload", null);
 exports.CustomersController = CustomersController = __decorate([

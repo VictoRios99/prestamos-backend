@@ -16,12 +16,18 @@ exports.NotificationsGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const socket_io_1 = require("socket.io");
 const jwt_1 = require("@nestjs/jwt");
+const typeorm_1 = require("@nestjs/typeorm");
+const typeorm_2 = require("typeorm");
+const activity_log_entity_1 = require("../activity/entities/activity-log.entity");
+const reverse_geocode_1 = require("../common/utils/reverse-geocode");
 let NotificationsGateway = class NotificationsGateway {
     jwtService;
+    activityLogRepo;
     server;
     connectedUsers = new Map();
-    constructor(jwtService) {
+    constructor(jwtService, activityLogRepo) {
         this.jwtService = jwtService;
+        this.activityLogRepo = activityLogRepo;
     }
     handleConnection(client) {
         try {
@@ -48,6 +54,9 @@ let NotificationsGateway = class NotificationsGateway {
             };
             this.connectedUsers.set(client.id, user);
             this.emitPresenceUpdate();
+            if (user.browserLocation) {
+                this.patchRecentLoginLocation(user.userId, user.browserLocation);
+            }
         }
         catch {
             client.disconnect();
@@ -61,6 +70,18 @@ let NotificationsGateway = class NotificationsGateway {
         const user = this.connectedUsers.get(client.id);
         if (user) {
             user.currentPage = data.page;
+            user.lastActivity = new Date();
+            this.emitPresenceUpdate();
+        }
+    }
+    handleUpdateLocation(client, data) {
+        const user = this.connectedUsers.get(client.id);
+        if (user && typeof data?.lat === 'number' && typeof data?.lng === 'number') {
+            user.browserLocation = {
+                lat: data.lat,
+                lng: data.lng,
+                accuracy: data.accuracy || 0,
+            };
             user.lastActivity = new Date();
             this.emitPresenceUpdate();
         }
@@ -126,6 +147,33 @@ let NotificationsGateway = class NotificationsGateway {
     emitDashboardUpdate(data) {
         this.server.emit('dashboardUpdate', data);
     }
+    async patchRecentLoginLocation(userId, loc) {
+        try {
+            const sixtySecsAgo = new Date(Date.now() - 60000);
+            const recent = await this.activityLogRepo.findOne({
+                where: {
+                    userId,
+                    action: activity_log_entity_1.ActivityAction.LOGIN,
+                    createdAt: (0, typeorm_2.MoreThanOrEqual)(sixtySecsAgo),
+                },
+                order: { createdAt: 'DESC' },
+            });
+            if (recent && !recent.details?.location) {
+                const location = await (0, reverse_geocode_1.reverseGeocode)(loc.lat, loc.lng);
+                if (location) {
+                    recent.details = {
+                        ...recent.details,
+                        location,
+                        locationSource: 'gps',
+                    };
+                    await this.activityLogRepo.save(recent);
+                }
+            }
+        }
+        catch (err) {
+            console.error('patchRecentLoginLocation error:', err);
+        }
+    }
 };
 exports.NotificationsGateway = NotificationsGateway;
 __decorate([
@@ -140,6 +188,14 @@ __decorate([
     __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
     __metadata("design:returntype", void 0)
 ], NotificationsGateway.prototype, "handleNavigated", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('updateLocation'),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __param(1, (0, websockets_1.MessageBody)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
+    __metadata("design:returntype", void 0)
+], NotificationsGateway.prototype, "handleUpdateLocation", null);
 exports.NotificationsGateway = NotificationsGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
@@ -151,6 +207,8 @@ exports.NotificationsGateway = NotificationsGateway = __decorate([
             credentials: true,
         },
     }),
-    __metadata("design:paramtypes", [jwt_1.JwtService])
+    __param(1, (0, typeorm_1.InjectRepository)(activity_log_entity_1.ActivityLog)),
+    __metadata("design:paramtypes", [jwt_1.JwtService,
+        typeorm_2.Repository])
 ], NotificationsGateway);
 //# sourceMappingURL=notifications.gateway.js.map

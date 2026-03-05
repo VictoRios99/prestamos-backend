@@ -38,7 +38,8 @@ let PaymentsService = class PaymentsService {
     }
     parseLocalDate(d) {
         if (typeof d === 'string') {
-            const [y, m, day] = d.split('-').map(Number);
+            const dateOnly = d.includes('T') ? d.split('T')[0] : d;
+            const [y, m, day] = dateOnly.split('-').map(Number);
             return new Date(y, m - 1, day);
         }
         return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
@@ -184,6 +185,7 @@ let PaymentsService = class PaymentsService {
                             actualCapitalPaid = currentBalance;
                         }
                         loan.currentBalance = currentBalance - actualCapitalPaid;
+                        loan.monthsPaid = (loan.monthsPaid || 0) + 1;
                     }
                     else {
                         throw new common_1.BadRequestException('Debe proporcionar un monto de pago válido.');
@@ -322,16 +324,18 @@ let PaymentsService = class PaymentsService {
             if (!loan) {
                 throw new common_1.NotFoundException('Préstamo asociado no encontrado.');
             }
-            const paymentCapitalPaid = payment.capitalPaid;
-            const paymentInterestPaid = payment.interestPaid;
+            const currentBalance = Number(loan.currentBalance);
+            const paymentCapitalPaid = Number(payment.capitalPaid);
+            const paymentInterestPaid = Number(payment.interestPaid);
+            const paymentAmount = Number(payment.amount);
             if (loan.loanType === 'Cápsula') {
-                loan.currentBalance = loan.currentBalance + payment.amount;
+                loan.currentBalance = currentBalance + paymentAmount;
             }
             else {
-                loan.currentBalance = loan.currentBalance + paymentCapitalPaid;
+                loan.currentBalance = currentBalance + paymentCapitalPaid;
             }
-            loan.totalInterestPaid = loan.totalInterestPaid - paymentInterestPaid;
-            loan.totalCapitalPaid = loan.totalCapitalPaid - paymentCapitalPaid;
+            loan.totalInterestPaid = Number(loan.totalInterestPaid) - paymentInterestPaid;
+            loan.totalCapitalPaid = Number(loan.totalCapitalPaid) - paymentCapitalPaid;
             if (loan.status === loan_entity_1.LoanStatus.PAID) {
                 loan.status = loan_entity_1.LoanStatus.ACTIVE;
             }

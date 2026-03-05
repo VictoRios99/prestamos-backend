@@ -36,6 +36,17 @@ export class DashboardController {
     return this.dashboardService.getCapitalDistribution();
   }
 
+  @Get('interest-by-month')
+  async getInterestByMonth(
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    const now = new Date();
+    const m = month ? parseInt(month, 10) : now.getMonth() + 1;
+    const y = year ? parseInt(year, 10) : now.getFullYear();
+    return this.dashboardService.getInterestByMonth(m, y);
+  }
+
   @Get('payment-log')
   async getPaymentActivityLog(
     @Query('month') month?: string,

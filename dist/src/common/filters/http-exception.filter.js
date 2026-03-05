@@ -23,6 +23,9 @@ let AllExceptionsFilter = class AllExceptionsFilter {
                     ? errorResponse
                     : errorResponse.message || message;
         }
+        if (status >= 500) {
+            console.error(`[ExceptionFilter] ${request.method} ${request.url} → ${status}:`, exception);
+        }
         response.status(status).json({
             statusCode: status,
             timestamp: new Date().toISOString(),

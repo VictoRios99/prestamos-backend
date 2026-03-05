@@ -260,9 +260,9 @@ export class LoansService {
         : new Date(loan.loanDate);
       overduePeriodsCount = countOverdueMonths(ref, today);
       overduePeriodsUnit = 'meses';
-      // Adeudo acumulado = meses × interés mensual sobre monto original
+      // Adeudo acumulado = meses × interés mensual sobre saldo actual
       const rate = parseFloat(loan.monthlyInterestRate) / 100;
-      accumulatedOverdueAmount = overduePeriodsCount * Math.ceil(Number(loan.amount) * rate);
+      accumulatedOverdueAmount = overduePeriodsCount * roundTwo(Number(loan.currentBalance) * rate);
     } else if (loan.monthlyPayments && loan.monthlyPayments.length > 0) {
       // Cápsula: contar monthly_payments vencidos no pagados
       for (const mp of loan.monthlyPayments) {
@@ -301,8 +301,8 @@ export class LoansService {
       // Cápsula sin plazo explícito: usar expectedAmount del primer MP
       monthlyPaymentAmount = Number(loan.monthlyPayments[0].expectedAmount || 0);
     } else {
-      // Indefinido: interest on original amount
-      monthlyPaymentAmount = roundTwo(Number(loan.amount) * rate);
+      // Indefinido: interest on current balance (changes when capital is paid)
+      monthlyPaymentAmount = roundTwo(Number(loan.currentBalance) * rate);
     }
 
     return {

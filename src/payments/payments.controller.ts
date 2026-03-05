@@ -32,6 +32,11 @@ export class PaymentsController {
   @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.OPERATOR)
   async create(@Body() createPaymentDto: CreatePaymentDto, @Req() req: Request) {
     const user = req.user as any;
+    // Operadores siempre registran pagos con la fecha de hoy
+    if (user.role === UserRole.OPERATOR) {
+      const now = new Date();
+      createPaymentDto.paymentDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    }
     const payment = await this.paymentsService.create(createPaymentDto, user.userId);
     // Fetch full payment with customer for activity log (fire-and-forget)
     this.paymentsService.findOne(payment.id).then(fp => {

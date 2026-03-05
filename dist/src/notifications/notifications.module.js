@@ -8,14 +8,16 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.NotificationsModule = void 0;
 const common_1 = require("@nestjs/common");
+const typeorm_1 = require("@nestjs/typeorm");
 const notifications_gateway_1 = require("./notifications.gateway");
 const auth_module_1 = require("../auth/auth.module");
+const activity_log_entity_1 = require("../activity/entities/activity-log.entity");
 let NotificationsModule = class NotificationsModule {
 };
 exports.NotificationsModule = NotificationsModule;
 exports.NotificationsModule = NotificationsModule = __decorate([
     (0, common_1.Module)({
-        imports: [auth_module_1.AuthModule],
+        imports: [auth_module_1.AuthModule, typeorm_1.TypeOrmModule.forFeature([activity_log_entity_1.ActivityLog])],
         providers: [notifications_gateway_1.NotificationsGateway],
         exports: [notifications_gateway_1.NotificationsGateway],
     })

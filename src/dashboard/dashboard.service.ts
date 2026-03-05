@@ -97,6 +97,32 @@ export interface PaymentLogEntry {
   total: number;
 }
 
+export interface InterestByMonth {
+  interesCapsula:    { cobrado: number; pendiente: number; esperado: number };
+  interesIndefinido: { cobrado: number; pendiente: number; esperado: number };
+  interesExtras:     { cobrado: number; pendiente: number; esperado: number };
+  interesTotal:      { cobrado: number; pendiente: number; esperado: number };
+  capitalCapsula:    { recibido: number; esperado: number; falta: number };
+  deudores: Array<{
+    loanId: number;
+    customer: string;
+    loanType: 'Capsula' | 'Indefinido';
+    interesEsperado: number;
+    capitalEsperado: number;
+    periodosMes: number;
+    periodosPagados: number;
+  }>;
+  pagados: Array<{
+    loanId: number;
+    customer: string;
+    loanType: 'Capsula' | 'Indefinido';
+    interesEsperado: number;
+    capitalEsperado: number;
+    periodosMes: number;
+    periodosPagados: number;
+  }>;
+}
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -745,5 +771,215 @@ export class DashboardService {
         total: interestPaid + capitalPaid,
       };
     });
+  }
+
+  async getInterestByMonth(month: number, year: number): Promise<InterestByMonth> {
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0);
+    const targetMonth = month - 1; // 0-indexed for Date comparisons
+    const targetYear = year;
+
+    // 1. Pagos cobrados en el mes target
+    const monthPayments = await this.paymentsRepository
+      .createQueryBuilder('payment')
+      .leftJoinAndSelect('payment.loan', 'loan')
+      .where('payment.paymentDate >= :start', { start: startOfMonth })
+      .andWhere('payment.paymentDate <= :end', { end: endOfMonth })
+      .getMany();
+
+    let interesCapCobrado = 0;
+    let capitalCapCobrado = 0;
+    let interesIndefCobrado = 0;
+
+    for (const p of monthPayments) {
+      const int = Number(p.interestPaid || 0);
+      const cap = Number(p.capitalPaid || 0);
+      if (p.loan?.loanType === 'Cápsula') {
+        interesCapCobrado += int;
+        capitalCapCobrado += cap;
+      } else {
+        interesIndefCobrado += int;
+      }
+    }
+
+    // 2. Todos los préstamos con relaciones
+    const loans = await this.loansRepository.find({
+      relations: ['customer', 'payments', 'monthlyPayments'],
+    });
+
+    let interesCapPendiente = 0;
+    let capitalCapPendiente = 0;
+    let interesIndefPendiente = 0;
+    const deudores: InterestByMonth['deudores'] = [];
+    const pagados: InterestByMonth['pagados'] = [];
+
+    for (const loan of loans) {
+      const customerName = `${loan.customer?.firstName || ''} ${loan.customer?.lastName || ''}`.trim();
+
+      // --- CÁPSULA ---
+      if (loan.loanType === 'Cápsula' && loan.status !== LoanStatus.CANCELLED) {
+        // Solo contar loans que ya existían en el mes target
+        const loanDate = this.toLocalDate(loan.loanDate);
+        if (loanDate > endOfMonth) continue;
+
+        const targetMps = (loan.monthlyPayments || []).filter(mp => {
+          const d = this.toLocalDate(mp.dueDate);
+          return d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+        });
+
+        const rate = Number(loan.monthlyInterestRate || 0) / 100;
+        const effectiveRate = loan.modality === 'quincenas' ? rate / 2 : rate;
+
+        if (targetMps.length > 0) {
+          // Tiene periodos calendario en este mes
+          const totalPeriodos = targetMps.length;
+          let periodosPagados = 0;
+          let loanInteresDeuda = 0;
+          let loanCapitalDeuda = 0;
+          let loanInteresPagado = 0;
+          let loanCapitalPagado = 0;
+          for (const mp of targetMps) {
+            const interesEsperado = Math.round(Number(loan.amount) * effectiveRate * 100) / 100;
+            const capitalEsperado = Math.max(0, Number(mp.expectedAmount) - interesEsperado);
+            const isPeriodPaid = loan.status === LoanStatus.PAID || mp.isPaid;
+            if (!isPeriodPaid) {
+              interesCapPendiente += interesEsperado;
+              capitalCapPendiente += capitalEsperado;
+              loanInteresDeuda += interesEsperado;
+              loanCapitalDeuda += capitalEsperado;
+            } else {
+              periodosPagados++;
+              loanInteresPagado += interesEsperado;
+              loanCapitalPagado += capitalEsperado;
+            }
+          }
+          const loanInteresTotal = loanInteresDeuda + loanInteresPagado;
+          const loanCapitalTotal = loanCapitalDeuda + loanCapitalPagado;
+          if (periodosPagados === totalPeriodos) {
+            // Todos los periodos pagados → solo en pagados
+            pagados.push({
+              loanId: loan.id, customer: customerName, loanType: 'Capsula',
+              interesEsperado: loanInteresTotal, capitalEsperado: loanCapitalTotal,
+              periodosMes: totalPeriodos, periodosPagados,
+            });
+          } else if (periodosPagados === 0) {
+            // Ningún periodo pagado → solo en deudores
+            deudores.push({
+              loanId: loan.id, customer: customerName, loanType: 'Capsula',
+              interesEsperado: loanInteresTotal, capitalEsperado: loanCapitalTotal,
+              periodosMes: totalPeriodos, periodosPagados,
+            });
+          } else {
+            // Parcialmente pagado → en deudores con info de parcialidad
+            deudores.push({
+              loanId: loan.id, customer: customerName, loanType: 'Capsula',
+              interesEsperado: loanInteresTotal, capitalEsperado: loanCapitalTotal,
+              periodosMes: totalPeriodos, periodosPagados,
+            });
+          }
+        } else if (loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.OVERDUE) {
+          // Sin calendario en este mes, pero sigue activo/vencido → aún debe interés
+          const expectedInterest = Math.round(Number(loan.amount) * effectiveRate * 100) / 100;
+          const paidInMonth = loan.payments?.some(p => {
+            const pd = this.toLocalDate(p.paymentDate);
+            return pd.getMonth() === targetMonth && pd.getFullYear() === targetYear;
+          });
+          if (!paidInMonth) {
+            interesCapPendiente += expectedInterest;
+            deudores.push({
+              loanId: loan.id, customer: customerName, loanType: 'Capsula',
+              interesEsperado: expectedInterest, capitalEsperado: 0,
+              periodosMes: 1, periodosPagados: 0,
+            });
+          } else {
+            pagados.push({
+              loanId: loan.id, customer: customerName, loanType: 'Capsula',
+              interesEsperado: expectedInterest, capitalEsperado: 0,
+              periodosMes: 1, periodosPagados: 1,
+            });
+          }
+        }
+        // PAID sin periodos en este mes: no tiene obligación, no aparece
+      }
+      // --- INDEFINIDO ---
+      else if (
+        loan.loanType === 'Indefinido' &&
+        (loan.status === LoanStatus.ACTIVE || loan.status === LoanStatus.OVERDUE)
+      ) {
+        // Solo contar loans que ya existían en el mes target
+        const loanDate = this.toLocalDate(loan.loanDate);
+        if (loanDate > endOfMonth) continue;
+
+        // Reconstruir saldo histórico: currentBalance + capital pagado DESPUÉS del mes target
+        let capitalPaidAfter = 0;
+        if (loan.payments) {
+          for (const p of loan.payments) {
+            const pd = this.toLocalDate(p.paymentDate);
+            if (pd > endOfMonth) {
+              capitalPaidAfter += Number(p.capitalPaid || 0);
+            }
+          }
+        }
+        const historicalBalance = Number(loan.currentBalance || 0) + capitalPaidAfter;
+
+        const rate = Number(loan.monthlyInterestRate || 0) / 100;
+        const expectedInterest = Math.round(historicalBalance * rate * 100) / 100;
+
+        // ¿Pagó en el mes target?
+        const paidInMonth = loan.payments?.some(p => {
+          const pd = this.toLocalDate(p.paymentDate);
+          return pd.getMonth() === targetMonth && pd.getFullYear() === targetYear;
+        });
+
+        if (!paidInMonth) {
+          interesIndefPendiente += expectedInterest;
+          deudores.push({
+            loanId: loan.id, customer: customerName, loanType: 'Indefinido',
+            interesEsperado: expectedInterest, capitalEsperado: 0,
+            periodosMes: 1, periodosPagados: 0,
+          });
+        } else {
+          pagados.push({
+            loanId: loan.id, customer: customerName, loanType: 'Indefinido',
+            interesEsperado: expectedInterest, capitalEsperado: 0,
+            periodosMes: 1, periodosPagados: 1,
+          });
+        }
+      }
+    }
+
+    const interesCapEsperado = interesCapCobrado + interesCapPendiente;
+    const interesIndefEsperado = interesIndefCobrado + interesIndefPendiente;
+    const capitalCapEsperado = capitalCapCobrado + capitalCapPendiente;
+
+    return {
+      interesCapsula: {
+        cobrado: interesCapCobrado,
+        pendiente: interesCapPendiente,
+        esperado: interesCapEsperado,
+      },
+      interesIndefinido: {
+        cobrado: interesIndefCobrado,
+        pendiente: interesIndefPendiente,
+        esperado: interesIndefEsperado,
+      },
+      interesExtras: {
+        cobrado: 0,
+        pendiente: 0,
+        esperado: 0,
+      },
+      interesTotal: {
+        cobrado: interesCapCobrado + interesIndefCobrado,
+        pendiente: interesCapPendiente + interesIndefPendiente,
+        esperado: interesCapEsperado + interesIndefEsperado,
+      },
+      capitalCapsula: {
+        recibido: capitalCapCobrado,
+        esperado: capitalCapEsperado,
+        falta: Math.max(0, capitalCapEsperado - capitalCapCobrado),
+      },
+      deudores: deudores.sort((a, b) => (b.interesEsperado + b.capitalEsperado) - (a.interesEsperado + a.capitalEsperado)),
+      pagados: pagados.sort((a, b) => (b.interesEsperado + b.capitalEsperado) - (a.interesEsperado + a.capitalEsperado)),
+    };
   }
 }

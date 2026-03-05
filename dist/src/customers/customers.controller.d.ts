@@ -12,7 +12,7 @@ export declare class CustomersController {
     findOne(id: string): Promise<import("./entities/customer.entity").Customer>;
     update(id: string, updateCustomerDto: UpdateCustomerDto, req: Request): Promise<import("./entities/customer.entity").Customer>;
     remove(id: string, req: Request): Promise<void>;
-    bulkUpload(file: any): Promise<{
+    bulkUpload(file: any, req: Request): Promise<{
         success: number;
         failed: number;
         errors: Array<{
