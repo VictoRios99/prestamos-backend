@@ -19,6 +19,7 @@ export class DashboardController {
   ) {}
 
   @Get('stats')
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.AUDITOR, UserRole.OPERATOR)
   async getDashboardStats(@Req() req: Request) {
     const user = req.user as any;
     this.activityService.log({
